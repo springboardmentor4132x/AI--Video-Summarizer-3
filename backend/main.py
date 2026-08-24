@@ -9,6 +9,11 @@ Run locally with:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.database import engine, Base
+from app import models
+
+Base.metadata.create_all(bind=engine)
+
 app = FastAPI(
     title="ClipMind AI API",
     description="AI-powered video summarization & key moments detection platform",
