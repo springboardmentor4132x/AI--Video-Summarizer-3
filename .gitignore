@@ -5,3 +5,9 @@ __pycache__/
 node_modules/
 .next/
 .DS_Store
+.venv/
+uploads/
+backend/uploads/
+test.mp4
+test.wav
+test_ffmpeg.py
