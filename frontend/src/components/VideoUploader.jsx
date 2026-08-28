@@ -8,18 +8,10 @@ export function VideoUploader() {
 
   const handleFileChange = (e) => {
     const selected = e.target.files[0];
-    const allowed = [
-      "video/mp4",
-      "video/quicktime",
-      "video/x-msvideo",
-      "video/webm",
-    ];
-    if (selected && allowed.includes(selected.type)) {
+    if (selected && selected.type === "video/mp4") {
       setFile(selected);
     } else {
-      alert(
-        "Invalid file type! Please upload a .mp4, .mov, .avi, or .webm video.",
-      );
+      alert("Invalid file type! Please upload an MP4 video.");
     }
   };
 
@@ -31,7 +23,7 @@ export function VideoUploader() {
 
     setUploading(true);
     try {
-      await apiClient.post("/videos/upload", formData, {
+      await apiClient.post("/video/process", formData, {
         headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (event) => {
           const percent = Math.round((event.loaded * 100) / event.total);
@@ -51,7 +43,7 @@ export function VideoUploader() {
   return (
     <div style={styles.container}>
       <h3>Upload Video Pipeline</h3>
-      <input type="file" accept="video/*" onChange={handleFileChange} />
+      <input type="file" accept="video/mp4,.mp4" onChange={handleFileChange} />
       {file && <p style={{ margin: "0.5rem 0" }}>Selected: {file.name}</p>}
 
       <button

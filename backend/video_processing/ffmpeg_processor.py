@@ -1,4 +1,5 @@
 import subprocess
+from imageio_ffmpeg import get_ffmpeg_exe
 
 
 def get_video_info(video_path):
@@ -17,7 +18,7 @@ def get_video_info(video_path):
 def extract_audio(video_path, audio_path):
     result = subprocess.run(
         [
-            "ffmpeg",
+            get_ffmpeg_exe(),
             "-i", video_path,
             "-vn",
             "-acodec", "pcm_s16le",
