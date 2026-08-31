@@ -11,3 +11,4 @@ backend/uploads/
 test.mp4
 test.wav
 test_ffmpeg.py
+test_whisper.wav
