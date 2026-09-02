@@ -1,9 +1,10 @@
 import subprocess
+from imageio_ffmpeg import get_ffmpeg_exe
 
 
 def extract_audio(video_path: str, audio_path: str):
     command = [
-        "ffmpeg",
+        get_ffmpeg_exe(),
         "-y",
         "-i",
         video_path,
@@ -19,7 +20,13 @@ def extract_audio(video_path: str, audio_path: str):
         audio_path,
     ]
 
-    subprocess.run(
+    result = subprocess.run(
         command,
-        check=True
+        capture_output=True,
+        text=True
     )
+
+    if result.returncode != 0:
+        raise RuntimeError(result.stderr)
+
+    return audio_path
