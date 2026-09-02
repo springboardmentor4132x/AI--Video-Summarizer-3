@@ -1,0 +1,286 @@
+{
+  "info": {
+    "_postman_id": "clipmind-ai-module-1",
+    "name": "ClipMind AI - Module 1 APIs",
+    "description": "Collection of all ClipMind AI Module 1 endpoints for video processing and user management.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"securepassword123\",\n  \"role\": \"Content Creator\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/auth/register",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "auth",
+                "register"
+              ]
+            },
+            "description": "Register a new user with email, password, name and role.\n\nRoles: Content Creator, Educator, Administrator, Learner"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"John Doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"securepassword123\",\n  \"role\": \"Content Creator\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:8000/auth/register",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8000",
+                  "path": [
+                    "auth",
+                    "register"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "body": "{\n  \"message\": \"User registered successfully\",\n  \"user\": {\n    \"id\": 1,\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"role\": \"Content Creator\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Login User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"securepassword123\"\n}"
+            },
+            "url": {
+              "raw": "http://localhost:8000/auth/login",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Login with email and password. Returns JWT access token."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"john@example.com\",\n  \"password\": \"securepassword123\"\n}"
+                },
+                "url": {
+                  "raw": "http://localhost:8000/auth/login",
+                  "protocol": "http",
+                  "host": [
+                    "localhost"
+                  ],
+                  "port": "8000",
+                  "path": [
+                    "auth",
+                    "login"
+                  ]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "body": "{\n  \"access_token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"token_type\": \"bearer\",\n  \"user\": {\n    \"id\": 1,\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"role\": \"Content Creator\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Video Management",
+      "item": [
+        {
+          "name": "Upload Video & Extract Audio",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "JWT token from login endpoint"
+              }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "disabled": false
+                }
+              ]
+            },
+            "url": {
+              "raw": "http://localhost:8000/video/process",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "video",
+                "process"
+              ]
+            },
+            "description": "Upload an MP4 video file. Extracts audio to WAV format and saves video record to database.\n\nRequirements:\n- File must be MP4 format\n- File size must not exceed 100MB\n- Authentication required (Bearer token)"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "body": "{\n  \"status\": \"processed\",\n  \"video_id\": 1,\n  \"filename\": \"sample.mp4\",\n  \"file_path\": \"uploads/sample.mp4\",\n  \"audio_path\": \"uploads/sample.wav\",\n  \"db_status\": \"uploaded\",\n  \"uploaded_at\": \"2024-01-15T10:30:45.123456\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get User's Upload History",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}",
+                "description": "JWT token from login endpoint"
+              }
+            ],
+            "url": {
+              "raw": "http://localhost:8000/videos/me",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "videos",
+                "me"
+              ]
+            },
+            "description": "Retrieve all videos uploaded by the current user. Returns list ordered by most recent first."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "body": "{\n  \"user_id\": 1,\n  \"videos\": [\n    {\n      \"id\": 1,\n      \"filename\": \"presentation.mp4\",\n      \"file_path\": \"uploads/presentation.mp4\",\n      \"status\": \"uploaded\",\n      \"uploaded_at\": \"2024-01-15T10:30:45.123456\"\n    },\n    {\n      \"id\": 2,\n      \"filename\": \"lecture.mp4\",\n      \"file_path\": \"uploads/lecture.mp4\",\n      \"status\": \"uploaded\",\n      \"uploaded_at\": \"2024-01-14T14:22:10.987654\"\n    }\n  ]\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Health & Status",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/health",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Check if the API server is running and healthy."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Root Endpoint",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                ""
+              ]
+            },
+            "description": "Basic sanity check that the server is alive."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "status": "OK",
+              "code": 200,
+              "header": [],
+              "body": "{\n  \"message\": \"ClipMind AI backend is running\"\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "access_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT access token obtained from login endpoint"
+    }
+  ]
+}
