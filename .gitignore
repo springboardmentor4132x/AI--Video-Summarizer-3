@@ -11,3 +11,12 @@ backend/uploads/
 test.mp4
 test.wav
 test_ffmpeg.py
+test_whisper.wavtest_speech.mp4
+test_speech.wav
+test_speech_loud.wav
+test_speech_normalized.wav
+test_speech.mp4
+test_speech.wav
+test_speech_loud.wav
+test_speech_normalized.wav
+/test_whisper.wav

@@ -2,31 +2,26 @@ import subprocess
 from imageio_ffmpeg import get_ffmpeg_exe
 
 
-def get_video_info(video_path):
+def extract_audio(video_path: str, audio_path: str):
+    command = [
+        get_ffmpeg_exe(),
+        "-y",
+        "-i",
+        video_path,
+        "-vn",
+        "-af",
+        "loudnorm",
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-c:a",
+        "pcm_s16le",
+        audio_path,
+    ]
+
     result = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_format", "-show_streams", video_path],
-        capture_output=True,
-        text=True
-    )
-
-    if result.returncode != 0:
-        raise RuntimeError(result.stderr)
-
-    return result.stdout
-
-
-def extract_audio(video_path, audio_path):
-    result = subprocess.run(
-        [
-            get_ffmpeg_exe(),
-            "-i", video_path,
-            "-vn",
-            "-acodec", "pcm_s16le",
-            "-ar", "16000",
-            "-ac", "1",
-            "-y",
-            audio_path
-        ],
+        command,
         capture_output=True,
         text=True
     )
