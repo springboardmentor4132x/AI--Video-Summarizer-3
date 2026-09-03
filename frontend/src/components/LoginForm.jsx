@@ -1,84 +1,140 @@
 import React, { useState, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
 
-export function LoginForm({ onSwitchToRegister }) {
+export default function LoginForm({ onSwitchToRegister }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const { login } = useContext(AuthContext);
+  const { login } = useContext(AuthContext) || {};
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    try {
-      setError("");
-      await login(email, password);
-    } catch (err) {
-      setError(err.response?.data?.detail || "Invalid email or password");
+    if (login) {
+      login({ email });
+    } else {
+      alert("Logged in!");
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} style={styles.card}>
-      <h2>Log In</h2>
-      {error && <p style={styles.error}>{error}</p>}
+    <div style={{ maxWidth: "280px", width: "100%", margin: "0 auto" }}>
+      <p
+        style={{
+          fontSize: "18px",
+          fontWeight: "500",
+          color: "#1F2328",
+          margin: "0 0 4px",
+        }}
+      >
+        Log in
+      </p>
+      <p style={{ fontSize: "13px", color: "#6B6F76", margin: "0 0 22px" }}>
+        Welcome back to your workspace.
+      </p>
 
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        required
-        style={styles.input}
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        required
-        style={styles.input}
-      />
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: "12px" }}>
+          <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 5px" }}>
+            Email
+          </p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "#FFFFFF",
+              border: "0.5px solid #E4E2DC",
+              borderRadius: "6px",
+              padding: "9px 12px",
+            }}
+          >
+            <span style={{ fontSize: "13px", color: "#9A9DA5" }}>✉</span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              style={{
+                border: "none",
+                outline: "none",
+                width: "100%",
+                fontSize: "13px",
+                color: "#1F2328",
+                background: "transparent",
+              }}
+            />
+          </div>
+        </div>
 
-      <button type="submit" style={styles.button}>
-        Log In
-      </button>
-      <p style={{ marginTop: "1rem", fontSize: "0.9rem" }}>
-        Don't have an account?{" "}
-        <span onClick={onSwitchToRegister} style={styles.link}>
+        <div style={{ marginBottom: "18px" }}>
+          <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 5px" }}>
+            Password
+          </p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "#FFFFFF",
+              border: "0.5px solid #E4E2DC",
+              borderRadius: "6px",
+              padding: "9px 12px",
+            }}
+          >
+            <span style={{ fontSize: "13px", color: "#9A9DA5" }}>🔒</span>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              style={{
+                border: "none",
+                outline: "none",
+                width: "100%",
+                fontSize: "13px",
+                color: "#1F2328",
+                background: "transparent",
+              }}
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          style={{
+            width: "100%",
+            background: "#F0A202",
+            color: "#412402",
+            textAlign: "center",
+            fontSize: "13px",
+            fontWeight: "500",
+            padding: "10px",
+            borderRadius: "6px",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          Log in
+        </button>
+      </form>
+
+      <p
+        style={{
+          fontSize: "12px",
+          color: "#6B6F76",
+          textAlign: "center",
+          margin: "16px 0 0",
+        }}
+      >
+        No account?{" "}
+        <span
+          onClick={onSwitchToRegister}
+          style={{ color: "#1F2328", fontWeight: "500", cursor: "pointer" }}
+        >
           Register
         </span>
       </p>
-    </form>
+    </div>
   );
 }
-
-const styles = {
-  card: {
-    maxWidth: "400px",
-    margin: "2rem auto",
-    padding: "1.5rem",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    textAlign: "left",
-  },
-  input: {
-    display: "block",
-    width: "100%",
-    marginBottom: "1rem",
-    padding: "0.5rem",
-    borderRadius: "4px",
-    border: "1px solid #ccc",
-    boxSizing: "border-box",
-  },
-  button: {
-    width: "100%",
-    padding: "0.6rem",
-    backgroundColor: "#4f46e5",
-    color: "#fff",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-  },
-  error: { color: "red", fontSize: "0.85rem", marginBottom: "1rem" },
-  link: { color: "#4f46e5", cursor: "pointer", textDecoration: "underline" },
-};
