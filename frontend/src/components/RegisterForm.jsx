@@ -1,18 +1,35 @@
 import React, { useState, useContext } from "react";
 import { AuthContext } from "../context/AuthContext";
+import { registerUser } from "../api/authApi";
 
 export default function RegisterForm({ onSwitchToLogin }) {
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [accountType, setAccountType] = useState("Learner");
+  const [error, setError] = useState("");
   const { login } = useContext(AuthContext) || {};
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    if (login) {
-      login({ email, accountType });
-    } else {
-      alert(`Account created as ${accountType}!`);
+    setError("");
+    try {
+      await registerUser({
+        name,
+        email,
+        password,
+        role: accountType,
+      });
+      // Auto-login right after successful registration
+      if (login) {
+        await login(email, password);
+      } else {
+        alert(`Account created as ${accountType}!`);
+      }
+    } catch (err) {
+      setError(
+        err?.response?.data?.detail || "Registration failed. Please try again."
+      );
     }
   };
 
@@ -32,7 +49,48 @@ export default function RegisterForm({ onSwitchToLogin }) {
         Start summarizing videos in seconds.
       </p>
 
+      {error && (
+        <p style={{ fontSize: "12px", color: "#C0392B", margin: "0 0 12px" }}>
+          {error}
+        </p>
+      )}
+
       <form onSubmit={handleSubmit}>
+        {/* Name Field */}
+        <div style={{ marginBottom: "12px" }}>
+          <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 5px" }}>
+            Full Name
+          </p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "#FFFFFF",
+              border: "0.5px solid #E4E2DC",
+              borderRadius: "6px",
+              padding: "9px 12px",
+            }}
+          >
+            <span style={{ fontSize: "13px", color: "#9A9DA5" }}>🧑</span>
+            <input
+              type="text"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              style={{
+                border: "none",
+                outline: "none",
+                width: "100%",
+                fontSize: "13px",
+                color: "#1F2328",
+                background: "transparent",
+              }}
+            />
+          </div>
+        </div>
+
         {/* Account Type Selection */}
         <div style={{ marginBottom: "12px" }}>
           <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 5px" }}>

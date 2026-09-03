@@ -31,6 +31,7 @@ from transcription.whisper_processor import WhisperProcessor
 
 from app.database import engine, Base, get_db
 from app import models
+from app.summarization import generate_summary
 
 
 # ---------------------------------------------------------
@@ -510,6 +511,35 @@ async def process_video(
         "video_id": video.id,
         "transcript_id": transcript.id,
         "video": str(video_path),
-        "audio": str(audio_path),
+         "audio": str(audio_path),
         "transcript": transcript_text,
+    }
+
+
+class SummarizeRequest(BaseModel):
+    video_id: int
+    transcript: str
+
+
+@app.post("/summarize")
+def summarize_video(request: SummarizeRequest, db: Session = Depends(get_db)):
+    """Generate a short and detailed AI summary from a transcript."""
+    result = generate_summary(request.transcript)
+
+    summary = models.Summary(
+        video_id=request.video_id,
+        short_summary=result["short_summary"],
+        detailed_summary=result["detailed_summary"],
+        status="completed",
+    )
+    db.add(summary)
+    db.commit()
+    db.refresh(summary)
+
+    return {
+        "id": summary.id,
+        "video_id": summary.video_id,
+        "short_summary": summary.short_summary,
+        "detailed_summary": summary.detailed_summary,
+        "status": summary.status,
     }
