@@ -9,7 +9,7 @@ export default function LoginForm({ onSwitchToRegister }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (login) {
-      login({ email });
+      login(email, password);
     } else {
       alert("Logged in!");
     }
