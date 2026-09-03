@@ -1,98 +1,142 @@
-import React, { useState } from "react";
-import { apiClient } from "../api/client";
+import React, { useState, useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 
-export function VideoUploader() {
-  const [file, setFile] = useState(null);
-  const [progress, setProgress] = useState(0);
-  const [uploading, setUploading] = useState(false);
+export default function RegisterForm({ onSwitchToLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const { login } = useContext(AuthContext) || {};
 
-  const handleFileChange = (e) => {
-    const selected = e.target.files[0];
-    if (selected && selected.type === "video/mp4") {
-      setFile(selected);
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (login) {
+      login({ email });
     } else {
-      alert("Invalid file type! Please upload an MP4 video.");
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!file) return;
-
-    const formData = new FormData();
-    formData.append("file", file);
-
-    setUploading(true);
-    try {
-      await apiClient.post("/video/process", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
-        onUploadProgress: (event) => {
-          const percent = Math.round((event.loaded * 100) / event.total);
-          setProgress(percent);
-        },
-      });
-      alert("Video uploaded successfully!");
-      setFile(null);
-    } catch (err) {
-      alert(err.response?.data?.detail || "Upload failed");
-    } finally {
-      setUploading(false);
-      setProgress(0);
+      alert("Account created!");
     }
   };
 
   return (
-    <div style={styles.container}>
-      <h3>Upload Video Pipeline</h3>
-      <input type="file" accept="video/mp4,.mp4" onChange={handleFileChange} />
-      {file && <p style={{ margin: "0.5rem 0" }}>Selected: {file.name}</p>}
-
-      <button
-        onClick={handleUpload}
-        disabled={!file || uploading}
-        style={styles.button}
+    <div style={{ maxWidth: "280px", width: "100%", margin: "0 auto" }}>
+      <p
+        style={{
+          fontSize: "18px",
+          fontWeight: "500",
+          color: "#1F2328",
+          margin: "0 0 4px",
+        }}
       >
-        {uploading ? `Uploading (${progress}%)` : "Upload Video"}
-      </button>
+        Register
+      </p>
+      <p style={{ fontSize: "13px", color: "#6B6F76", margin: "0 0 22px" }}>
+        Start summarizing videos in seconds.
+      </p>
 
-      {uploading && (
-        <div style={styles.progressBarBg}>
+      <form onSubmit={handleSubmit}>
+        <div style={{ marginBottom: "12px" }}>
+          <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 5px" }}>
+            Email
+          </p>
           <div
-            style={{ ...styles.progressBarFill, width: `${progress}%` }}
-          ></div>
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "#FFFFFF",
+              border: "0.5px solid #E4E2DC",
+              borderRadius: "6px",
+              padding: "9px 12px",
+            }}
+          >
+            <span style={{ fontSize: "13px", color: "#9A9DA5" }}>✉</span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              style={{
+                border: "none",
+                outline: "none",
+                width: "100%",
+                fontSize: "13px",
+                color: "#1F2328",
+                background: "transparent",
+              }}
+            />
+          </div>
         </div>
-      )}
+
+        <div style={{ marginBottom: "18px" }}>
+          <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 5px" }}>
+            Password
+          </p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "#FFFFFF",
+              border: "0.5px solid #E4E2DC",
+              borderRadius: "6px",
+              padding: "9px 12px",
+            }}
+          >
+            <span style={{ fontSize: "13px", color: "#9A9DA5" }}>🔒</span>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              style={{
+                border: "none",
+                outline: "none",
+                width: "100%",
+                fontSize: "13px",
+                color: "#1F2328",
+                background: "transparent",
+              }}
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          style={{
+            width: "100%",
+            background: "#F0A202",
+            color: "#412402",
+            textAlign: "center",
+            fontSize: "13px",
+            fontWeight: "500",
+            padding: "10px",
+            borderRadius: "6px",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          Create Account
+        </button>
+      </form>
+
+      <p
+        style={{
+          fontSize: "12px",
+          color: "#6B6F76",
+          textAlign: "center",
+          margin: "16px 0 0",
+        }}
+      >
+        Have an account?{" "}
+        <span
+          onClick={onSwitchToLogin}
+          style={{ color: "#1F2328", fontWeight: "500", cursor: "pointer" }}
+        >
+          Log in
+        </span>
+      </p>
     </div>
   );
 }
 
-const styles = {
-  container: {
-    padding: "2rem",
-    border: "2px dashed #9ca3af",
-    borderRadius: "8px",
-    textAlign: "center",
-    marginTop: "1.5rem",
-  },
-  button: {
-    marginTop: "1rem",
-    padding: "0.5rem 1.5rem",
-    backgroundColor: "#059669",
-    color: "#fff",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-  },
-  progressBarBg: {
-    width: "100%",
-    height: "8px",
-    backgroundColor: "#e5e7eb",
-    borderRadius: "4px",
-    marginTop: "1rem",
-    overflow: "hidden",
-  },
-  progressBarFill: {
-    height: "100%",
-    backgroundColor: "#059669",
-    transition: "width 0.2s",
-  },
-};
+

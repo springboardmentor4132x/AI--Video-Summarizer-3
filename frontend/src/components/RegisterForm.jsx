@@ -1,138 +1,181 @@
-import React, { useState } from "react";
-import { registerUser } from "../api/authApi";
+import React, { useState, useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 
-export function RegisterForm({ onSwitchToLogin }) {
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-    role: "Content Creator",
-  });
-  const [error, setError] = useState("");
+export default function RegisterForm({ onSwitchToLogin }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [accountType, setAccountType] = useState("Learner");
+  const { login } = useContext(AuthContext) || {};
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
-
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    try {
-      setError("");
-      await registerUser({
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        role: formData.role,
-      });
-      alert("Registration successful! Please log in.");
-      onSwitchToLogin();
-    } catch (err) {
-      setError(err.response?.data?.detail || "Registration failed");
+    if (login) {
+      login({ email, accountType });
+    } else {
+      alert(`Account created as ${accountType}!`);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} style={styles.card}>
-      <h2>Register Account</h2>
-      {error && <p style={styles.error}>{error}</p>}
-
-      <input
-        name="name"
-        placeholder="Full Name"
-        onChange={handleChange}
-        required
-        style={styles.input}
-      />
-      <input
-        name="email"
-        type="email"
-        placeholder="Email"
-        onChange={handleChange}
-        required
-        style={styles.input}
-      />
-      <input
-        name="password"
-        type="password"
-        placeholder="Password"
-        onChange={handleChange}
-        required
-        style={styles.input}
-      />
-      <input
-        name="confirmPassword"
-        type="password"
-        placeholder="Confirm Password"
-        onChange={handleChange}
-        required
-        style={styles.input}
-      />
-
-      <label style={styles.label}>Select Role:</label>
-      <select
-        name="role"
-        value={formData.role}
-        onChange={handleChange}
-        style={styles.input}
+    <div style={{ maxWidth: "280px", width: "100%", margin: "0 auto" }}>
+      <p
+        style={{
+          fontSize: "18px",
+          fontWeight: "500",
+          color: "#1F2328",
+          margin: "0 0 4px",
+        }}
       >
-        <option value="Content Creator">Content Creator</option>
-        <option value="Learner">Learner</option>
-        <option value="Educator">Educator</option>
-        <option value="Administrator">Administrator</option>
-      </select>
-
-      <button type="submit" style={styles.button}>
         Register
-      </button>
-      <p style={{ marginTop: "1rem", fontSize: "0.9rem" }}>
-        Already have an account?{" "}
-        <span onClick={onSwitchToLogin} style={styles.link}>
-          Login
+      </p>
+      <p style={{ fontSize: "13px", color: "#6B6F76", margin: "0 0 22px" }}>
+        Start summarizing videos in seconds.
+      </p>
+
+      <form onSubmit={handleSubmit}>
+        {/* Account Type Selection */}
+        <div style={{ marginBottom: "12px" }}>
+          <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 5px" }}>
+            Account Type
+          </p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "#FFFFFF",
+              border: "0.5px solid #E4E2DC",
+              borderRadius: "6px",
+              padding: "9px 12px",
+            }}
+          >
+            <span style={{ fontSize: "13px", color: "#9A9DA5" }}>👤</span>
+            <select
+              value={accountType}
+              onChange={(e) => setAccountType(e.target.value)}
+              style={{
+                border: "none",
+                outline: "none",
+                width: "100%",
+                fontSize: "13px",
+                color: "#1F2328",
+                background: "transparent",
+                cursor: "pointer",
+              }}
+            >
+              <option value="Learner">Learner</option>
+              <option value="Content Creator">Content Creator</option>
+              <option value="Educator">Educator</option>
+              <option value="Administrator">Administrator</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Email Field */}
+        <div style={{ marginBottom: "12px" }}>
+          <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 5px" }}>
+            Email
+          </p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "#FFFFFF",
+              border: "0.5px solid #E4E2DC",
+              borderRadius: "6px",
+              padding: "9px 12px",
+            }}
+          >
+            <span style={{ fontSize: "13px", color: "#9A9DA5" }}>✉</span>
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              style={{
+                border: "none",
+                outline: "none",
+                width: "100%",
+                fontSize: "13px",
+                color: "#1F2328",
+                background: "transparent",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Password Field */}
+        <div style={{ marginBottom: "18px" }}>
+          <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 5px" }}>
+            Password
+          </p>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              background: "#FFFFFF",
+              border: "0.5px solid #E4E2DC",
+              borderRadius: "6px",
+              padding: "9px 12px",
+            }}
+          >
+            <span style={{ fontSize: "13px", color: "#9A9DA5" }}>🔒</span>
+            <input
+              type="password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              style={{
+                border: "none",
+                outline: "none",
+                width: "100%",
+                fontSize: "13px",
+                color: "#1F2328",
+                background: "transparent",
+              }}
+            />
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          style={{
+            width: "100%",
+            background: "#F0A202",
+            color: "#412402",
+            textAlign: "center",
+            fontSize: "13px",
+            fontWeight: "500",
+            padding: "10px",
+            borderRadius: "6px",
+            border: "none",
+            cursor: "pointer",
+          }}
+        >
+          Create Account
+        </button>
+      </form>
+
+      <p
+        style={{
+          fontSize: "12px",
+          color: "#6B6F76",
+          textAlign: "center",
+          margin: "16px 0 0",
+        }}
+      >
+        Have an account?{" "}
+        <span
+          onClick={onSwitchToLogin}
+          style={{ color: "#1F2328", fontWeight: "500", cursor: "pointer" }}
+        >
+          Log in
         </span>
       </p>
-    </form>
+    </div>
   );
 }
-
-const styles = {
-  card: {
-    maxWidth: "400px",
-    margin: "2rem auto",
-    padding: "1.5rem",
-    border: "1px solid #ddd",
-    borderRadius: "8px",
-    textAlign: "left",
-  },
-  input: {
-    display: "block",
-    width: "100%",
-    marginBottom: "1rem",
-    padding: "0.5rem",
-    borderRadius: "4px",
-    border: "1px solid #ccc",
-    boxSizing: "border-box",
-  },
-  label: {
-    fontSize: "0.85rem",
-    fontWeight: "bold",
-    marginBottom: "0.2rem",
-    display: "block",
-  },
-  button: {
-    width: "100%",
-    padding: "0.6rem",
-    backgroundColor: "#2563eb",
-    color: "#fff",
-    border: "none",
-    borderRadius: "4px",
-    cursor: "pointer",
-  },
-  error: { color: "red", fontSize: "0.85rem", marginBottom: "1rem" },
-  link: { color: "#2563eb", cursor: "pointer", textDecoration: "underline" },
-};
