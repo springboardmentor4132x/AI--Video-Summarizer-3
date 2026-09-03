@@ -1,65 +1,52 @@
 import React, { useState, useContext } from "react";
 import { AuthProvider, AuthContext } from "./context/AuthContext";
-import { RegisterForm } from "./components/RegisterForm";
-import { LoginForm } from "./components/LoginForm";
-import { VideoUploader } from "./components/VideoUploader";
+import AuthLayout from "./components/AuthLayout";
+import LoginForm from "./components/LoginForm";
+import RegisterForm from "./components/RegisterForm";
+import VideoUploader from "./components/VideoUploader";
 
 function MainApp() {
-  const { user, logout } = useContext(AuthContext);
-  const [view, setView] = useState("login"); // 'login' or 'register'
+  const { user, logout } = useContext(AuthContext) || {};
+  const [view, setView] = useState("login");
 
   if (!user) {
     return (
-      <div style={{ textAlign: "center", paddingTop: "2rem" }}>
-        <h1>ClipMind AI Platform</h1>
+      <AuthLayout>
         {view === "login" ? (
           <LoginForm onSwitchToRegister={() => setView("register")} />
         ) : (
           <RegisterForm onSwitchToLogin={() => setView("login")} />
         )}
-      </div>
+      </AuthLayout>
     );
   }
 
   return (
-    <div style={{ padding: "2rem", maxWidth: "800px", margin: "0 auto" }}>
-      <header
+    <div
+      style={{
+        maxWidth: "800px",
+        margin: "2rem auto",
+        padding: "0 1rem",
+        color: "#fff",
+      }}
+    >
+      <div
         style={{
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          marginBottom: "2rem",
         }}
       >
-        <div>
-          <h2>Welcome, {user.email}</h2>
-          <p>
-            Role: <strong>{user.role}</strong>
-          </p>
-        </div>
+        <h2>ClipMind AI Platform</h2>
         <button
           onClick={logout}
           style={{ padding: "0.5rem 1rem", cursor: "pointer" }}
         >
           Logout
         </button>
-      </header>
-
-      <hr style={{ margin: "1.5rem 0" }} />
-
-      {/* Role-based view logic */}
-      {["Content Creator", "Educator", "Administrator"].includes(user.role) ? (
-        <VideoUploader />
-      ) : (
-        <div
-          style={{
-            padding: "1rem",
-            backgroundColor: "#fef3c7",
-            borderRadius: "6px",
-          }}
-        >
-          Learner mode: You have view-only access to summaries and transcripts.
-        </div>
-      )}
+      </div>
+      <VideoUploader />
     </div>
   );
 }
