@@ -20,3 +20,29 @@ class WhisperProcessor:
         print("Whisper transcript:", repr(text))
 
         return text
+
+    def transcribe_with_timestamps(self, audio_path: str):
+        result = self.model.transcribe(
+            audio_path,
+            fp16=False,
+            language="en",
+            temperature=0
+        )
+
+        segments = []
+
+        for segment in result.get("segments", []):
+            text = segment.get("text", "").strip()
+
+            if text:
+                segments.append({
+                    "start": segment["start"],
+                    "end": segment["end"],
+                    "text": text
+                })
+
+        print("Timestamped segments:")
+        for segment in segments:
+            print(segment)
+
+        return segments
