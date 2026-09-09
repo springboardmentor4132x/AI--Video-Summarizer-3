@@ -6,6 +6,9 @@ Project Initialization, Design Process & Core Setup
 
 Module 2:
 Transcript Generation using FFmpeg + Whisper
+
+Module 3:
+Transcript Segmentation, Embeddings, Similarity & Topic Segmentation
 """
 
 import os
@@ -28,6 +31,7 @@ from sqlalchemy.orm import Session
 
 from video_processing.ffmpeg_processor import extract_audio
 from transcription.whisper_processor import WhisperProcessor
+from module3.pipeline import TopicPipeline
 
 from app.database import engine, Base, get_db
 from app import models
@@ -48,7 +52,7 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI(
     title="ClipMind AI API",
     description="AI-powered video summarization & key moments detection platform",
-    version="0.2.0",
+    version="0.3.0",
 )
 
 
@@ -86,6 +90,10 @@ password_context = CryptContext(
 )
 
 
+# ---------------------------------------------------------
+# Request Models
+# ---------------------------------------------------------
+
 class RegisterRequest(BaseModel):
     name: str
     email: EmailStr
@@ -97,6 +105,10 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
+
+# ---------------------------------------------------------
+# JWT Token
+# ---------------------------------------------------------
 
 def create_access_token(user_id: int) -> str:
     expires_at = datetime.now(timezone.utc) + timedelta(
@@ -113,6 +125,10 @@ def create_access_token(user_id: int) -> str:
     )
 
 
+# ---------------------------------------------------------
+# User Response
+# ---------------------------------------------------------
+
 def user_response(user: models.User) -> dict:
     return {
         "id": user.id,
@@ -121,6 +137,10 @@ def user_response(user: models.User) -> dict:
         "role": user.role,
     }
 
+
+# ---------------------------------------------------------
+# Get Current User
+# ---------------------------------------------------------
 
 def get_current_user(
     authorization: str = Header(None),
@@ -316,13 +336,14 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 
 
 # ---------------------------------------------------------
-# Whisper Processor
+# Whisper + Module 3
 # ---------------------------------------------------------
 
 # Load Whisper once when the application starts.
-# Using tiny model because it is suitable for local CPU testing.
-
 whisper_processor = WhisperProcessor("tiny")
+
+# Reuse the same Whisper processor inside Module 3.
+topic_pipeline = TopicPipeline(whisper_processor)
 
 
 # ---------------------------------------------------------
@@ -336,7 +357,7 @@ async def process_video(
     db: Session = Depends(get_db)
 ):
     """
-    Module 2 pipeline:
+    Module 2 + Module 3 pipeline:
 
     MP4
       ↓
@@ -352,9 +373,19 @@ async def process_video(
       ↓
     Whisper
       ↓
-    Transcript
+    Timestamped transcript segments
       ↓
-    Save Transcript to database
+    Module 3 segmentation
+      ↓
+    Sentence Transformer embeddings
+      ↓
+    Cosine similarity
+      ↓
+    Topic segmentation
+      ↓
+    Save Transcript
+      ↓
+    Return transcript + topics
     """
 
     # -----------------------------------------------------
@@ -454,13 +485,20 @@ async def process_video(
         )
 
     # -----------------------------------------------------
-    # 7. Generate transcript using Whisper
+    # 7. Generate timestamped transcript using Whisper
     # -----------------------------------------------------
 
     try:
-        transcript_text = whisper_processor.transcribe(
-            str(audio_path)
+        timestamped_segments = (
+            whisper_processor.transcribe_with_timestamps(
+                str(audio_path)
+            )
         )
+
+        transcript_text = " ".join(
+            segment["text"]
+            for segment in timestamped_segments
+        ).strip()
 
     except Exception as e:
         video.status = "failed"
@@ -489,7 +527,27 @@ async def process_video(
         )
 
     # -----------------------------------------------------
-    # 9. Save transcript
+    # 9. Run Module 3 topic analysis
+    # -----------------------------------------------------
+
+    try:
+        analysis = topic_pipeline.analyze_segments(
+            timestamped_segments
+        )
+
+    except Exception as e:
+        video.status = "failed"
+        transcript.status = "failed"
+
+        db.commit()
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Module 3 analysis failed: {str(e)}"
+        )
+
+    # -----------------------------------------------------
+    # 10. Save transcript
     # -----------------------------------------------------
 
     transcript.transcript_text = transcript_text
@@ -503,7 +561,7 @@ async def process_video(
     db.refresh(transcript)
 
     # -----------------------------------------------------
-    # 10. Return result
+    # 11. Return result
     # -----------------------------------------------------
 
     return {
@@ -513,6 +571,12 @@ async def process_video(
         "video": str(video_path),
          "audio": str(audio_path),
         "transcript": transcript_text,
+
+        # Module 3 output
+        "segments": timestamped_segments,
+        "chunks": analysis["chunks"],
+        "similarities": analysis["similarities"],
+        "topics": analysis["topics"],
     }
 
 
