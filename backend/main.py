@@ -420,6 +420,25 @@ async def process_video(
         )
 
     # -----------------------------------------------------
+    # 1b. Prevent duplicate processing for this user
+    # -----------------------------------------------------
+
+    existing_processing = (
+        db.query(models.Video)
+        .filter(
+            models.Video.user_id == current_user.id,
+            models.Video.status == "processing",
+        )
+        .first()
+    )
+
+    if existing_processing:
+        raise HTTPException(
+            status_code=409,
+            detail="A video is already being processed. Please wait until it completes.",
+        )
+
+    # -----------------------------------------------------
     # 2. Create video paths
     # -----------------------------------------------------
 
@@ -569,7 +588,7 @@ async def process_video(
         "video_id": video.id,
         "transcript_id": transcript.id,
         "video": str(video_path),
-         "audio": str(audio_path),
+        "audio": str(audio_path),
         "transcript": transcript_text,
 
         # Module 3 output
@@ -580,6 +599,10 @@ async def process_video(
     }
 
 
+# ---------------------------------------------------------
+# AI Summarization
+# ---------------------------------------------------------
+
 class SummarizeRequest(BaseModel):
     video_id: int
     transcript: str
@@ -588,15 +611,47 @@ class SummarizeRequest(BaseModel):
 @app.post("/summarize")
 def summarize_video(request: SummarizeRequest, db: Session = Depends(get_db)):
     """Generate a short and detailed AI summary from a transcript."""
-    result = generate_summary(request.transcript)
 
+    # Prevent duplicate processing: reject if a job for this video is already running
+    existing_processing = (
+        db.query(models.Summary)
+        .filter(
+            models.Summary.video_id == request.video_id,
+            models.Summary.status == "processing",
+        )
+        .first()
+    )
+
+    if existing_processing:
+        raise HTTPException(
+            status_code=409,
+            detail="Summary generation is already in progress for this video.",
+        )
+
+    # Create a placeholder row immediately, marked "processing"
     summary = models.Summary(
         video_id=request.video_id,
-        short_summary=result["short_summary"],
-        detailed_summary=result["detailed_summary"],
-        status="completed",
+        short_summary=None,
+        detailed_summary=None,
+        status="processing",
     )
     db.add(summary)
+    db.commit()
+    db.refresh(summary)
+
+    try:
+        result = generate_summary(request.transcript)
+    except Exception as e:
+        summary.status = "failed"
+        db.commit()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Summary generation failed: {str(e)}",
+        )
+
+    summary.short_summary = result["short_summary"]
+    summary.detailed_summary = result["detailed_summary"]
+    summary.status = "completed"
     db.commit()
     db.refresh(summary)
 
