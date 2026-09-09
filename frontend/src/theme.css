@@ -1,0 +1,53 @@
+:root {
+  --bg: #FAF9F6;
+  --bg-elevated: #FFFFFF;
+  --bg-sidebar: #111318;
+  --text: #1F2328;
+  --text-muted: #6B6F76;
+  --border: #E4E2DC;
+  --accent: #F0A202;
+  --accent-text: #412402;
+  --success: #2F855A;
+  --danger: #C0392B;
+  --warning: #B7791F;
+}
+
+[data-theme="dark"] {
+  --bg: #0d0e12;
+  --bg-elevated: #17191e;
+  --bg-sidebar: #0a0b0e;
+  --text: #F4F3EF;
+  --text-muted: #9A9DA5;
+  --border: #2d3139;
+  --accent: #F0A202;
+  --accent-text: #1a1200;
+  --success: #48BB78;
+  --danger: #FC8181;
+  --warning: #F6AD55;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, sans-serif;
+  transition: background 0.2s, color 0.2s;
+}
+
+
+
+/* Responsive: collapse sidebar to a slim icon rail on small screens */
+@media (max-width: 768px) {
+  .app-sidebar {
+    width: 64px !important;
+  }
+  .app-sidebar .sidebar-label,
+  .app-sidebar .sidebar-usercard-text,
+  .app-sidebar .sidebar-brand-text {
+    display: none;
+  }
+}

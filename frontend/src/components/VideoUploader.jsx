@@ -1,287 +1,297 @@
 import React, { useState } from "react";
 import { apiClient } from "../api/client";
 
+const STATUS = {
+  NOT_STARTED: "not_started",
+  PROCESSING: "processing",
+  COMPLETED: "completed",
+  FAILED: "failed",
+};
+
 export default function VideoUploader() {
+  const [step, setStep] = useState("upload");
   const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [summarizing, setSummarizing] = useState(false);
-  const [error, setError] = useState("");
-  const [result, setResult] = useState(null); // { shortSummary, detailedSummary }
+
+  const [videoId, setVideoId] = useState(null);
+  const [transcript, setTranscript] = useState("");
+  const [transcriptStatus, setTranscriptStatus] = useState(STATUS.NOT_STARTED);
+  const [transcriptError, setTranscriptError] = useState("");
+
+  const [summary, setSummary] = useState(null);
+  const [summaryStatus, setSummaryStatus] = useState(STATUS.NOT_STARTED);
+  const [summaryError, setSummaryError] = useState("");
+  const [summaryGeneratedAt, setSummaryGeneratedAt] = useState(null);
 
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0]);
-      setResult(null);
-      setError("");
+      setTranscriptError("");
     }
   };
 
   const handleUpload = async (e) => {
     e.preventDefault();
-    if (!file) return;
+    if (!file || transcriptStatus === STATUS.PROCESSING) return;
 
-    setError("");
-    setResult(null);
-    setUploading(true);
+    setTranscriptError("");
+    setTranscriptStatus(STATUS.PROCESSING);
 
     try {
       const token = localStorage.getItem("token");
       const formData = new FormData();
       formData.append("file", file);
 
-      // Step 1: Upload video -> backend runs FFmpeg + Whisper -> returns transcript
-      const uploadRes = await apiClient.post("/video/process", formData, {
+      const res = await apiClient.post("/video/process", formData, {
         headers: {
           authorization: `Bearer ${token}`,
           "Content-Type": "multipart/form-data",
         },
       });
 
-      const { video_id, transcript } = uploadRes.data;
-      setUploading(false);
-      setSummarizing(true);
-
-      // Step 2: Send transcript -> backend runs AI summarization
-      const summaryRes = await apiClient.post("/summarize", {
-        video_id,
-        transcript,
-      });
-
-      setResult({
-        shortSummary: summaryRes.data.short_summary,
-        detailedSummary: summaryRes.data.detailed_summary,
-      });
+      setVideoId(res.data.video_id);
+      setTranscript(res.data.transcript);
+      setTranscriptStatus(STATUS.COMPLETED);
+      setStep("transcript");
     } catch (err) {
-      setError(
-        err?.response?.data?.detail ||
-          "Something went wrong while processing the video."
+      setTranscriptStatus(STATUS.FAILED);
+      setTranscriptError(
+        err?.response?.data?.detail || "Transcription failed. Please try again."
       );
-    } finally {
-      setUploading(false);
-      setSummarizing(false);
     }
   };
 
-  const busy = uploading || summarizing;
-  const buttonLabel = uploading
-    ? "Uploading & transcribing..."
-    : summarizing
-    ? "Generating summary..."
-    : "Generate Summary";
+  const handleGenerateSummary = async () => {
+    if (summaryStatus === STATUS.PROCESSING) return;
+
+    setSummaryError("");
+    setSummaryStatus(STATUS.PROCESSING);
+
+    try {
+      const res = await apiClient.post("/summarize", {
+        video_id: videoId,
+        transcript,
+      });
+
+      setSummary({
+        short: res.data.short_summary,
+        detailed: res.data.detailed_summary,
+      });
+      setSummaryStatus(STATUS.COMPLETED);
+      setSummaryGeneratedAt(new Date());
+      setStep("summary");
+    } catch (err) {
+      setSummaryStatus(STATUS.FAILED);
+      setSummaryError(
+        err?.response?.data?.detail || "Summary generation failed. Please try again."
+      );
+    }
+  };
+
+  const resetAll = () => {
+    setStep("upload");
+    setFile(null);
+    setVideoId(null);
+    setTranscript("");
+    setTranscriptStatus(STATUS.NOT_STARTED);
+    setTranscriptError("");
+    setSummary(null);
+    setSummaryStatus(STATUS.NOT_STARTED);
+    setSummaryError("");
+    setSummaryGeneratedAt(null);
+  };
+
+  const cardStyle = {
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    borderRadius: "12px",
+    padding: "32px 36px",
+    maxWidth: "480px",
+    margin: "0 auto",
+  };
+  const titleStyle = { fontSize: "20px", fontWeight: "700", color: "var(--text)", margin: "0 0 4px" };
+  const subStyle = { fontSize: "13px", color: "var(--text-muted)", margin: "0 0 22px" };
+  const labelStyle = { fontSize: "12px", color: "var(--text-muted)", margin: "16px 0 4px", fontWeight: "600" };
+  const bodyStyle = { fontSize: "13px", color: "var(--text)", lineHeight: "1.6", margin: 0, whiteSpace: "pre-wrap" };
+  const errorStyle = { fontSize: "12px", color: "var(--danger)", margin: "0 0 12px" };
+  const buttonStyle = (disabled) => ({
+    width: "100%",
+    background: disabled ? "var(--border)" : "var(--accent)",
+    color: disabled ? "var(--text-muted)" : "var(--accent-text)",
+    textAlign: "center",
+    fontSize: "13px",
+    fontWeight: "600",
+    padding: "11px",
+    borderRadius: "8px",
+    border: "none",
+    cursor: disabled ? "not-allowed" : "pointer",
+    marginTop: "10px",
+  });
+  const secondaryButtonStyle = {
+    width: "100%",
+    background: "transparent",
+    color: "var(--text-muted)",
+    textAlign: "center",
+    fontSize: "12px",
+    fontWeight: "500",
+    padding: "9px",
+    borderRadius: "8px",
+    border: "1px solid var(--border)",
+    cursor: "pointer",
+    marginTop: "8px",
+  };
+  const statusBadge = (status) => {
+    const map = {
+      [STATUS.NOT_STARTED]: { text: "Not started", color: "var(--text-muted)" },
+      [STATUS.PROCESSING]: { text: "Processing…", color: "var(--warning)" },
+      [STATUS.COMPLETED]: { text: "Completed", color: "var(--success)" },
+      [STATUS.FAILED]: { text: "Failed", color: "var(--danger)" },
+    };
+    const s = map[status];
+    return (
+      <span style={{ fontSize: "11px", fontWeight: "700", color: s.color, letterSpacing: "0.02em" }}>
+        {s.text}
+      </span>
+    );
+  };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "#0d0e12",
-        padding: "1rem",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-      }}
-    >
-      <div
-        style={{
-          width: "100%",
-          maxWidth: "760px",
-          backgroundColor: "#17191e",
-          borderRadius: "12px",
-          padding: "12px",
-          border: "0.5px solid #2d3139",
-          boxShadow: "0 20px 30px rgba(0, 0, 0, 0.4)",
-        }}
-      >
-        {/* Window Controls Header */}
-        <div style={{ display: "flex", gap: "6px", padding: "4px 6px 12px" }}>
-          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3d424d" }} />
-          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3d424d" }} />
-          <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#3d424d" }} />
+    <div style={{ padding: "48px 24px", minHeight: "100%" }}>
+      <div style={cardStyle}>
+        {/* Status tracker */}
+        <div style={{ display: "flex", gap: "18px", marginBottom: "24px" }}>
+          <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+            Transcript: {statusBadge(transcriptStatus)}
+          </span>
+          <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
+            Summary: {statusBadge(summaryStatus)}
+          </span>
         </div>
 
-        {/* Split Container */}
-        <div
-          style={{
-            display: "flex",
-            minHeight: "420px",
-            borderRadius: "8px",
-            overflow: "hidden",
-            border: "0.5px solid #2d3139",
-          }}
-        >
-          {/* Left Dark Branding Panel */}
-          <div
-            style={{
-              flex: "0 0 42%",
-              backgroundColor: "#111318",
-              padding: "32px 28px",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              boxSizing: "border-box",
-            }}
-          >
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "28px" }}>
-                <span style={{ width: "8px", height: "8px", borderRadius: "50%", background: "#F0A202" }} />
-                <span style={{ fontSize: "15px", fontWeight: "500", color: "#F4F3EF" }}>ClipMind</span>
-              </div>
-              <p style={{ fontSize: "11px", letterSpacing: "0.08em", color: "#9A9DA5", margin: "0 0 18px" }}>
-                AI VIDEO SUMMARIZER
-              </p>
-              <p style={{ fontSize: "20px", fontWeight: "500", color: "#F4F3EF", lineHeight: "1.5", margin: 0 }}>
-                Instant Insights.
-                <br />
-                From Any Video.
-              </p>
-              <p style={{ fontSize: "13px", color: "#9A9DA5", lineHeight: "1.6", margin: "16px 0 0" }}>
-                Upload your file to generate time-stamped summaries, key
-                takeaways, and transcripts in real time.
-              </p>
-            </div>
+        {step === "upload" && (
+          <>
+            <p style={titleStyle}>Upload Video</p>
+            <p style={subStyle}>Select an MP4 file to begin.</p>
 
-            <div style={{ display: "flex", alignItems: "flex-end", gap: "3px", height: "40px" }}>
-              <span style={{ width: "3px", height: "14px", background: "#F0A202" }} />
-              <span style={{ width: "3px", height: "26px", background: "#3d3f46" }} />
-              <span style={{ width: "3px", height: "18px", background: "#3d3f46" }} />
-              <span style={{ width: "3px", height: "34px", background: "#F0A202" }} />
-              <span style={{ width: "3px", height: "20px", background: "#3d3f46" }} />
-              <span style={{ width: "3px", height: "12px", background: "#3d3f46" }} />
-              <span style={{ width: "3px", height: "28px", background: "#3d3f46" }} />
-              <span style={{ width: "3px", height: "16px", background: "#F0A202" }} />
-              <span style={{ width: "3px", height: "24px", background: "#3d3f46" }} />
-            </div>
-          </div>
+            {transcriptError && <p style={errorStyle}>{transcriptError}</p>}
 
-          {/* Right Panel */}
-          <div
-            style={{
-              flex: "1",
-              backgroundColor: "#FAF9F6",
-              padding: "32px 36px",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              boxSizing: "border-box",
-              overflowY: "auto",
-            }}
-          >
-            <div style={{ maxWidth: "290px", width: "100%", margin: "0 auto" }}>
-              {!result ? (
-                <>
-                  <p style={{ fontSize: "18px", fontWeight: "500", color: "#1F2328", margin: "0 0 4px" }}>
-                    Upload Video
-                  </p>
-                  <p style={{ fontSize: "13px", color: "#6B6F76", margin: "0 0 22px" }}>
-                    Select an MP4 file to begin.
-                  </p>
-
-                  {error && (
-                    <p style={{ fontSize: "12px", color: "#C0392B", margin: "0 0 12px" }}>
-                      {error}
-                    </p>
-                  )}
-
-                  <form onSubmit={handleUpload}>
-                    <div style={{ marginBottom: "18px" }}>
-                      <input
-                        type="file"
-                        accept="video/mp4"
-                        onChange={handleFileChange}
-                        style={{ display: "none" }}
-                        id="video-file-input"
-                      />
-                      <label
-                        htmlFor="video-file-input"
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          gap: "8px",
-                          background: "#FFFFFF",
-                          border: "1px dashed #E4E2DC",
-                          borderRadius: "8px",
-                          padding: "28px 16px",
-                          cursor: "pointer",
-                          textAlign: "center",
-                        }}
-                      >
-                        <span style={{ fontSize: "20px", color: "#9A9DA5" }}>📁</span>
-                        <span
-                          style={{
-                            fontSize: "12px",
-                            color: file ? "#1F2328" : "#9A9DA5",
-                            fontWeight: file ? "500" : "400",
-                          }}
-                        >
-                          {file ? file.name : "Click to select video"}
-                        </span>
-                      </label>
-                    </div>
-
-                    <button
-                      type="submit"
-                      disabled={!file || busy}
-                      style={{
-                        width: "100%",
-                        background: !file || busy ? "#E4E2DC" : "#F0A202",
-                        color: !file || busy ? "#9A9DA5" : "#412402",
-                        textAlign: "center",
-                        fontSize: "13px",
-                        fontWeight: "500",
-                        padding: "10px",
-                        borderRadius: "6px",
-                        border: "none",
-                        cursor: !file || busy ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      {buttonLabel}
-                    </button>
-                  </form>
-                </>
-              ) : (
-                <>
-                  <p style={{ fontSize: "18px", fontWeight: "500", color: "#1F2328", margin: "0 0 12px" }}>
-                    Summary Ready
-                  </p>
-                  <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 4px", fontWeight: "500" }}>
-                    Short Summary
-                  </p>
-                  <p style={{ fontSize: "13px", color: "#1F2328", margin: "0 0 16px", lineHeight: "1.5" }}>
-                    {result.shortSummary}
-                  </p>
-                  <p style={{ fontSize: "12px", color: "#6B6F76", margin: "0 0 4px", fontWeight: "500" }}>
-                    Detailed Summary
-                  </p>
-                  <p style={{ fontSize: "13px", color: "#1F2328", margin: "0 0 16px", lineHeight: "1.5" }}>
-                    {result.detailedSummary}
-                  </p>
-                  <button
-                    onClick={() => {
-                      setResult(null);
-                      setFile(null);
-                    }}
+            <form onSubmit={handleUpload}>
+              <div style={{ marginBottom: "10px" }}>
+                <input
+                  type="file"
+                  accept="video/mp4"
+                  onChange={handleFileChange}
+                  style={{ display: "none" }}
+                  id="video-file-input"
+                />
+                <label
+                  htmlFor="video-file-input"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    background: "var(--bg)",
+                    border: "1px dashed var(--border)",
+                    borderRadius: "8px",
+                    padding: "36px 16px",
+                    cursor: "pointer",
+                    textAlign: "center",
+                  }}
+                >
+                  <span style={{ fontSize: "22px" }}>📁</span>
+                  <span
                     style={{
-                      width: "100%",
-                      background: "#F0A202",
-                      color: "#412402",
-                      textAlign: "center",
-                      fontSize: "13px",
-                      fontWeight: "500",
-                      padding: "10px",
-                      borderRadius: "6px",
-                      border: "none",
-                      cursor: "pointer",
+                      fontSize: "12px",
+                      color: file ? "var(--text)" : "var(--text-muted)",
+                      fontWeight: file ? "600" : "400",
                     }}
                   >
-                    Upload Another
-                  </button>
-                </>
-              )}
+                    {file ? file.name : "Click to select video"}
+                  </span>
+                </label>
+              </div>
+
+              <button
+                type="submit"
+                disabled={!file || transcriptStatus === STATUS.PROCESSING}
+                style={buttonStyle(!file || transcriptStatus === STATUS.PROCESSING)}
+              >
+                {transcriptStatus === STATUS.PROCESSING
+                  ? "Uploading & transcribing…"
+                  : "Generate Transcript"}
+              </button>
+            </form>
+          </>
+        )}
+
+        {step === "transcript" && (
+          <>
+            <p style={titleStyle}>Transcript</p>
+            <p style={subStyle}>{file?.name || "Video"}</p>
+
+            <p style={labelStyle}>Transcript</p>
+            <div
+              style={{
+                maxHeight: "160px",
+                overflowY: "auto",
+                background: "var(--bg)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                padding: "12px 14px",
+              }}
+            >
+              <p style={bodyStyle}>{transcript || "No transcript available."}</p>
             </div>
-          </div>
-        </div>
+
+            {summaryError && <p style={{ ...errorStyle, marginTop: "12px" }}>{summaryError}</p>}
+
+            <button
+              onClick={handleGenerateSummary}
+              disabled={summaryStatus === STATUS.PROCESSING}
+              style={buttonStyle(summaryStatus === STATUS.PROCESSING)}
+            >
+              {summaryStatus === STATUS.PROCESSING
+                ? "Generating summary…"
+                : summaryStatus === STATUS.FAILED
+                ? "Retry Summary"
+                : "Generate Summary"}
+            </button>
+            <button onClick={resetAll} style={secondaryButtonStyle}>
+              Upload a different video
+            </button>
+          </>
+        )}
+
+        {step === "summary" && summary && (
+          <>
+            <p style={titleStyle}>Summary</p>
+            <p style={subStyle}>
+              {file?.name || "Video"}
+              {summaryGeneratedAt && <> · Generated {summaryGeneratedAt.toLocaleTimeString()}</>}
+            </p>
+
+            <p style={labelStyle}>Short Summary</p>
+            <p style={bodyStyle}>{summary.short}</p>
+
+            <p style={labelStyle}>Detailed Summary</p>
+            <p style={bodyStyle}>{summary.detailed}</p>
+
+            <button
+              onClick={handleGenerateSummary}
+              disabled={summaryStatus === STATUS.PROCESSING}
+              style={buttonStyle(summaryStatus === STATUS.PROCESSING)}
+            >
+              {summaryStatus === STATUS.PROCESSING ? "Regenerating…" : "Regenerate Summary"}
+            </button>
+            <button onClick={() => setStep("transcript")} style={secondaryButtonStyle}>
+              Back to transcript
+            </button>
+            <button onClick={resetAll} style={secondaryButtonStyle}>
+              Upload a different video
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
