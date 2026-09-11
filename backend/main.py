@@ -8,10 +8,11 @@ Module 2:
 Transcript Generation using FFmpeg + Whisper
 
 Module 3:
-Transcript Segmentation, Embeddings, Similarity & Topic Segmentation
+Transcript Segmentation, Embeddings, Similarity, Topic Segmentation & Keyword Extraction
 """
 
 import os
+import wave
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -32,6 +33,7 @@ from sqlalchemy.orm import Session
 from video_processing.ffmpeg_processor import extract_audio
 from transcription.whisper_processor import WhisperProcessor
 from module3.pipeline import TopicPipeline
+from module3.keywords import extract_keywords
 
 from app.database import engine, Base, get_db
 from app import models
@@ -155,7 +157,6 @@ def get_current_user(
         )
 
     try:
-        # Extract token from "Bearer <token>"
         parts = authorization.split(" ")
 
         if len(parts) != 2 or parts[0].lower() != "bearer":
@@ -314,6 +315,8 @@ def get_user_videos(
                 "filename": video.filename,
                 "file_path": video.file_path,
                 "status": video.status,
+                "duration_seconds": video.duration_seconds,
+                "keywords": video.keywords,
                 "uploaded_at": (
                     video.uploaded_at.isoformat()
                     if video.uploaded_at
@@ -321,6 +324,70 @@ def get_user_videos(
                 ),
             }
             for video in videos
+        ],
+    }
+
+
+# ---------------------------------------------------------
+# Analytics
+# ---------------------------------------------------------
+
+@app.get("/analytics")
+def get_analytics(
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Aggregate stats for the current user's dashboard."""
+
+    videos = (
+        db.query(models.Video)
+        .filter(models.Video.user_id == current_user.id)
+        .all()
+    )
+    video_ids = [v.id for v in videos]
+
+    transcripts_completed = (
+        db.query(models.Transcript)
+        .filter(
+            models.Transcript.user_id == current_user.id,
+            models.Transcript.status == "completed",
+        )
+        .count()
+    )
+
+    summaries_completed = (
+        db.query(models.Summary)
+        .filter(
+            models.Summary.video_id.in_(video_ids) if video_ids else False,
+            models.Summary.status == "completed",
+        )
+        .count()
+    )
+
+    total_topics = (
+        db.query(models.Topic)
+        .filter(models.Topic.video_id.in_(video_ids) if video_ids else False)
+        .count()
+    )
+
+    total_duration = sum(v.duration_seconds or 0 for v in videos)
+
+    return {
+        "videos_uploaded": len(videos),
+        "transcripts_completed": transcripts_completed,
+        "summaries_completed": summaries_completed,
+        "total_topics_detected": total_topics,
+        "total_duration_seconds": total_duration,
+        "recent_videos": [
+            {
+                "id": v.id,
+                "filename": v.filename,
+                "status": v.status,
+                "duration_seconds": v.duration_seconds,
+                "keywords": v.keywords,
+                "uploaded_at": v.uploaded_at.isoformat() if v.uploaded_at else None,
+            }
+            for v in sorted(videos, key=lambda x: x.uploaded_at or datetime.min, reverse=True)[:5]
         ],
     }
 
@@ -339,10 +406,7 @@ MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
 # Whisper + Module 3
 # ---------------------------------------------------------
 
-# Load Whisper once when the application starts.
 whisper_processor = WhisperProcessor("tiny")
-
-# Reuse the same Whisper processor inside Module 3.
 topic_pipeline = TopicPipeline(whisper_processor)
 
 
@@ -369,7 +433,7 @@ async def process_video(
       ↓
     FFmpeg
       ↓
-    WAV audio
+    WAV audio + duration
       ↓
     Whisper
       ↓
@@ -383,9 +447,11 @@ async def process_video(
       ↓
     Topic segmentation
       ↓
-    Save Transcript
+    Keyword extraction
       ↓
-    Return transcript + topics
+    Save Transcript + Topics + Keywords
+      ↓
+    Return transcript + topics + keywords
     """
 
     # -----------------------------------------------------
@@ -404,7 +470,6 @@ async def process_video(
             detail="Only MP4 files are supported"
         )
 
-    # Read file content once
     file_content = await file.read()
 
     if len(file_content) > MAX_FILE_SIZE:
@@ -504,6 +569,20 @@ async def process_video(
         )
 
     # -----------------------------------------------------
+    # 6b. Compute video duration from the extracted WAV
+    # -----------------------------------------------------
+
+    try:
+        with wave.open(str(audio_path), "rb") as wav_file:
+            frames = wav_file.getnframes()
+            rate = wav_file.getframerate()
+            duration_seconds = int(frames / float(rate))
+        video.duration_seconds = duration_seconds
+        db.commit()
+    except Exception:
+        pass  # duration is nice-to-have, don't fail the whole pipeline over it
+
+    # -----------------------------------------------------
     # 7. Generate timestamped transcript using Whisper
     # -----------------------------------------------------
 
@@ -566,6 +645,28 @@ async def process_video(
         )
 
     # -----------------------------------------------------
+    # 9b. Save topics to database
+    # -----------------------------------------------------
+
+    for topic in analysis["topics"]:
+        db.add(models.Topic(
+            video_id=video.id,
+            topic_id=topic["topic_id"],
+            start_time=int(topic["start_time"]),
+            end_time=int(topic["end_time"]),
+            text=topic["text"],
+        ))
+    db.commit()
+
+    # -----------------------------------------------------
+    # 9c. Extract keywords
+    # -----------------------------------------------------
+
+    keywords = extract_keywords(transcript_text, top_n=10)
+    video.keywords = ", ".join(keywords)
+    db.commit()
+
+    # -----------------------------------------------------
     # 10. Save transcript
     # -----------------------------------------------------
 
@@ -596,6 +697,7 @@ async def process_video(
         "chunks": analysis["chunks"],
         "similarities": analysis["similarities"],
         "topics": analysis["topics"],
+        "keywords": keywords,
     }
 
 
@@ -612,7 +714,6 @@ class SummarizeRequest(BaseModel):
 def summarize_video(request: SummarizeRequest, db: Session = Depends(get_db)):
     """Generate a short and detailed AI summary from a transcript."""
 
-    # Prevent duplicate processing: reject if a job for this video is already running
     existing_processing = (
         db.query(models.Summary)
         .filter(
@@ -628,7 +729,6 @@ def summarize_video(request: SummarizeRequest, db: Session = Depends(get_db)):
             detail="Summary generation is already in progress for this video.",
         )
 
-    # Create a placeholder row immediately, marked "processing"
     summary = models.Summary(
         video_id=request.video_id,
         short_summary=None,

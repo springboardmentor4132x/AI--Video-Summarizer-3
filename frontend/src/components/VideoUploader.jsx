@@ -14,6 +14,8 @@ export default function VideoUploader() {
 
   const [videoId, setVideoId] = useState(null);
   const [transcript, setTranscript] = useState("");
+  const [topics, setTopics] = useState([]);
+  const [keywords, setKeywords] = useState([]);
   const [transcriptStatus, setTranscriptStatus] = useState(STATUS.NOT_STARTED);
   const [transcriptError, setTranscriptError] = useState("");
 
@@ -50,13 +52,19 @@ export default function VideoUploader() {
 
       setVideoId(res.data.video_id);
       setTranscript(res.data.transcript);
+      setTopics(res.data.topics || []);
+      setKeywords(res.data.keywords || []);
       setTranscriptStatus(STATUS.COMPLETED);
       setStep("transcript");
     } catch (err) {
       setTranscriptStatus(STATUS.FAILED);
-      setTranscriptError(
-        err?.response?.data?.detail || "Transcription failed. Please try again."
-      );
+      if (err?.response?.status === 401) {
+        setTranscriptError("Your session expired. Please log out and log in again.");
+      } else {
+        setTranscriptError(
+          err?.response?.data?.detail || "Transcription failed. Please try again."
+        );
+      }
     }
   };
 
@@ -92,12 +100,46 @@ export default function VideoUploader() {
     setFile(null);
     setVideoId(null);
     setTranscript("");
+    setTopics([]);
+    setKeywords([]);
     setTranscriptStatus(STATUS.NOT_STARTED);
     setTranscriptError("");
     setSummary(null);
     setSummaryStatus(STATUS.NOT_STARTED);
     setSummaryError("");
     setSummaryGeneratedAt(null);
+  };
+
+  const formatTime = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const downloadHighlightReport = () => {
+    const lines = [
+      `Highlight Report — ${file?.name || "video"}`,
+      `Generated: ${new Date().toLocaleString()}`,
+      "",
+      `Keywords: ${keywords.join(", ")}`,
+      "",
+      "Key Moments:",
+      ...topics.map(
+        (t) => `[${formatTime(t.start_time)} - ${formatTime(t.end_time)}] Topic ${t.topic_id}: ${t.text}`
+      ),
+      "",
+      "Summary:",
+      summary ? `Short: ${summary.short}` : "(not generated yet)",
+      summary ? `Detailed: ${summary.detailed}` : "",
+    ];
+
+    const blob = new Blob([lines.join("\n")], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `highlight-report-${videoId || "video"}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const cardStyle = {
@@ -157,7 +199,6 @@ export default function VideoUploader() {
   return (
     <div style={{ padding: "48px 24px", minHeight: "100%" }}>
       <div style={cardStyle}>
-        {/* Status tracker */}
         <div style={{ display: "flex", gap: "18px", marginBottom: "24px" }}>
           <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
             Transcript: {statusBadge(transcriptStatus)}
@@ -233,7 +274,7 @@ export default function VideoUploader() {
             <p style={labelStyle}>Transcript</p>
             <div
               style={{
-                maxHeight: "160px",
+                maxHeight: "140px",
                 overflowY: "auto",
                 background: "var(--bg)",
                 border: "1px solid var(--border)",
@@ -243,6 +284,58 @@ export default function VideoUploader() {
             >
               <p style={bodyStyle}>{transcript || "No transcript available."}</p>
             </div>
+
+            {keywords.length > 0 && (
+              <>
+                <p style={labelStyle}>Keywords</p>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "4px" }}>
+                  {keywords.map((kw) => (
+                    <span
+                      key={kw}
+                      style={{
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        color: "var(--accent-text)",
+                        background: "var(--accent)",
+                        padding: "3px 9px",
+                        borderRadius: "12px",
+                      }}
+                    >
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {topics.length > 0 && (
+              <>
+                <p style={labelStyle}>Key Moments ({topics.length} topics)</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "8px", maxHeight: "180px", overflowY: "auto" }}>
+                  {topics.map((topic) => (
+                    <div
+                      key={topic.topic_id}
+                      style={{
+                        background: "var(--bg)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "6px",
+                        padding: "8px 10px",
+                      }}
+                    >
+                      <p style={{ fontSize: "11px", fontWeight: "700", color: "var(--accent)", margin: "0 0 3px" }}>
+                        {formatTime(topic.start_time)} – {formatTime(topic.end_time)} · Topic {topic.topic_id}
+                      </p>
+                      <p style={{ fontSize: "12px", color: "var(--text)", margin: 0, lineHeight: "1.4" }}>
+                        {topic.text.length > 140 ? topic.text.slice(0, 140) + "…" : topic.text}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <button onClick={downloadHighlightReport} style={secondaryButtonStyle}>
+                  ⬇ Download Highlight Report
+                </button>
+              </>
+            )}
 
             {summaryError && <p style={{ ...errorStyle, marginTop: "12px" }}>{summaryError}</p>}
 
@@ -283,6 +376,9 @@ export default function VideoUploader() {
               style={buttonStyle(summaryStatus === STATUS.PROCESSING)}
             >
               {summaryStatus === STATUS.PROCESSING ? "Regenerating…" : "Regenerate Summary"}
+            </button>
+            <button onClick={downloadHighlightReport} style={secondaryButtonStyle}>
+              ⬇ Download Highlight Report
             </button>
             <button onClick={() => setStep("transcript")} style={secondaryButtonStyle}>
               Back to transcript
