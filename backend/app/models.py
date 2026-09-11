@@ -22,6 +22,8 @@ class Video(Base):
     filename = Column(String, nullable=False)
     file_path = Column(String, nullable=False)
     status = Column(String, default="uploaded")
+    duration_seconds = Column(Integer, nullable=True)
+    keywords = Column(Text, nullable=True)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -48,5 +50,17 @@ class Summary(Base):
     video_id = Column(Integer, ForeignKey("videos.id"), nullable=False)
     short_summary = Column(String, nullable=True)
     detailed_summary = Column(String, nullable=True)
-    status = Column(String, default="not_started")  # not_started | processing | completed | failed
+    status = Column(String, default="not_started")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class Topic(Base):
+    __tablename__ = "topics"
+
+    id = Column(Integer, primary_key=True, index=True)
+    video_id = Column(Integer, ForeignKey("videos.id"), nullable=False)
+    topic_id = Column(Integer, nullable=False)
+    start_time = Column(Integer, nullable=False)
+    end_time = Column(Integer, nullable=False)
+    text = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
