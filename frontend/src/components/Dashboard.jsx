@@ -31,6 +31,12 @@ export default function Dashboard({ user, onUploadClick }) {
     return `${mins}m ${secs}s`;
   };
 
+  const formatTime = (s) => {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60);
+    return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
   const statusColor = (status) => {
     const map = {
       processed: "var(--success)",
@@ -49,6 +55,14 @@ export default function Dashboard({ user, onUploadClick }) {
         { label: "Total Watch Time", value: formatDuration(analytics.total_duration_seconds), icon: "⏱️" },
       ]
     : [];
+
+  const cardBoxStyle = {
+    background: "var(--bg-elevated)",
+    border: "1px solid var(--border)",
+    borderRadius: "12px",
+    padding: "20px 24px",
+    marginBottom: "24px",
+  };
 
   return (
     <div style={{ padding: "40px", maxWidth: "900px" }}>
@@ -97,17 +111,76 @@ export default function Dashboard({ user, onUploadClick }) {
             ))}
           </div>
 
+          {/* Content Insights */}
+          {analytics.top_keywords && analytics.top_keywords.length > 0 && (
+            <div style={cardBoxStyle}>
+              <p style={{ fontSize: "15px", fontWeight: "700", color: "var(--text)", margin: "0 0 4px" }}>
+                Content Insights
+              </p>
+              <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: "0 0 14px" }}>
+                Your most discussed topics across all videos
+              </p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                {analytics.top_keywords.map((k) => (
+                  <span
+                    key={k.keyword}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "6px",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      color: "var(--accent-text)",
+                      background: "var(--accent)",
+                      padding: "5px 12px",
+                      borderRadius: "14px",
+                    }}
+                  >
+                    {k.keyword}
+                    <span style={{ fontSize: "10px", opacity: 0.8 }}>×{k.count}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Most Important Topics */}
+          {analytics.top_topics && analytics.top_topics.length > 0 && (
+            <div style={cardBoxStyle}>
+              <p style={{ fontSize: "15px", fontWeight: "700", color: "var(--text)", margin: "0 0 4px" }}>
+                Most Important Topics
+              </p>
+              <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: "0 0 14px" }}>
+                Longest-discussed segments across your videos
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {analytics.top_topics.map((t, i) => (
+                  <div
+                    key={`${t.video_id}-${t.topic_id}-${i}`}
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: "12px",
+                      padding: "10px 0",
+                      borderBottom: i < analytics.top_topics.length - 1 ? "1px solid var(--border)" : "none",
+                    }}
+                  >
+                    <p style={{ fontSize: "13px", color: "var(--text)", margin: 0, flex: 1 }}>
+                      {t.text}
+                    </p>
+                    <span style={{ fontSize: "11px", fontWeight: "700", color: "var(--accent)", whiteSpace: "nowrap" }}>
+                      {formatTime(t.start_time)}–{formatTime(t.end_time)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Recent videos */}
           {analytics.recent_videos && analytics.recent_videos.length > 0 && (
-            <div
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                borderRadius: "12px",
-                padding: "20px 24px",
-                marginBottom: "32px",
-              }}
-            >
+            <div style={cardBoxStyle}>
               <p style={{ fontSize: "15px", fontWeight: "700", color: "var(--text)", margin: "0 0 14px" }}>
                 Recent Videos
               </p>
