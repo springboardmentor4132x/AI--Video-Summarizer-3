@@ -364,20 +364,56 @@ def get_analytics(
         .count()
     )
 
-    total_topics = (
+    all_topics = (
         db.query(models.Topic)
         .filter(models.Topic.video_id.in_(video_ids) if video_ids else False)
-        .count()
+        .all()
     )
 
     total_duration = sum(v.duration_seconds or 0 for v in videos)
+
+    # --- Content Insights: most frequent keywords across all videos ---
+    from collections import Counter
+    keyword_counter = Counter()
+    for v in videos:
+        if v.keywords:
+            for kw in v.keywords.split(","):
+                kw = kw.strip()
+                if kw:
+                    keyword_counter[kw] += 1
+
+    top_keywords = [
+        {"keyword": kw, "count": count}
+        for kw, count in keyword_counter.most_common(8)
+    ]
+
+    # --- Most Important Topics: longest-duration topics across all videos ---
+    ranked_topics = sorted(
+        all_topics,
+        key=lambda t: (t.end_time - t.start_time),
+        reverse=True,
+    )[:5]
+
+    top_topics = [
+        {
+            "video_id": t.video_id,
+            "topic_id": t.topic_id,
+            "start_time": t.start_time,
+            "end_time": t.end_time,
+            "duration": t.end_time - t.start_time,
+            "text": (t.text[:120] + "…") if t.text and len(t.text) > 120 else t.text,
+        }
+        for t in ranked_topics
+    ]
 
     return {
         "videos_uploaded": len(videos),
         "transcripts_completed": transcripts_completed,
         "summaries_completed": summaries_completed,
-        "total_topics_detected": total_topics,
+        "total_topics_detected": len(all_topics),
         "total_duration_seconds": total_duration,
+        "top_keywords": top_keywords,
+        "top_topics": top_topics,
         "recent_videos": [
             {
                 "id": v.id,
@@ -390,7 +426,6 @@ def get_analytics(
             for v in sorted(videos, key=lambda x: x.uploaded_at or datetime.min, reverse=True)[:5]
         ],
     }
-
 
 # ---------------------------------------------------------
 # File Storage
