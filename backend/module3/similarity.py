@@ -10,6 +10,6 @@ def calculate_similarity(embeddings):
             [embeddings[i + 1]]
         )[0][0]
 
-        similarities.append(score)
+        similarities.append(float(score))
 
     return similarities
