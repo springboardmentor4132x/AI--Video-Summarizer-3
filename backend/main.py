@@ -12,9 +12,10 @@ Transcript Segmentation, Embeddings, Similarity, Topic Segmentation & Keyword Ex
 """
 
 import os
+import uuid
 import wave
-from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 
 from fastapi import (
     Depends,
@@ -24,6 +25,7 @@ from fastapi import (
     HTTPException,
     Header,
 )
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from passlib.context import CryptContext
 from pydantic import BaseModel, EmailStr
@@ -300,10 +302,13 @@ def get_user_videos(
 ):
     """Retrieve all videos uploaded by the current user."""
 
+    enforce_video_retention(db, current_user.id)
+
     videos = (
         db.query(models.Video)
         .filter(models.Video.user_id == current_user.id)
         .order_by(models.Video.uploaded_at.desc())
+        .limit(MAX_LIBRARY_VIDEOS)
         .all()
     )
 
@@ -431,10 +436,44 @@ def get_analytics(
 # File Storage
 # ---------------------------------------------------------
 
-UPLOAD_DIR = Path("uploads")
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
+MAX_LIBRARY_VIDEOS = 20
+
+
+def enforce_video_retention(db: Session, user_id: int):
+    """Keep only the newest videos and remove their related files and rows."""
+    videos = (
+        db.query(models.Video)
+        .filter(models.Video.user_id == user_id)
+        .order_by(models.Video.uploaded_at.desc(), models.Video.id.desc())
+        .all()
+    )
+
+    for video in videos[MAX_LIBRARY_VIDEOS:]:
+        video_path = Path(video.file_path)
+        audio_path = video_path.with_suffix(".wav")
+
+        db.query(models.Topic).filter(models.Topic.video_id == video.id).delete(
+            synchronize_session=False
+        )
+        db.query(models.Summary).filter(models.Summary.video_id == video.id).delete(
+            synchronize_session=False
+        )
+        db.query(models.Transcript).filter(
+            models.Transcript.video_id == video.id
+        ).delete(synchronize_session=False)
+        db.delete(video)
+
+        for stored_path in (video_path, audio_path):
+            try:
+                stored_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+    db.commit()
 
 
 # ---------------------------------------------------------
@@ -542,7 +581,8 @@ async def process_video(
     # 2. Create video paths
     # -----------------------------------------------------
 
-    video_path = UPLOAD_DIR / file.filename
+    stored_filename = f"{uuid.uuid4().hex}_{Path(file.filename).name}"
+    video_path = UPLOAD_DIR / stored_filename
     audio_path = UPLOAD_DIR / f"{video_path.stem}.wav"
 
     # -----------------------------------------------------
@@ -581,6 +621,8 @@ async def process_video(
     db.add(transcript)
     db.commit()
     db.refresh(transcript)
+
+    enforce_video_retention(db, current_user.id)
 
     # -----------------------------------------------------
     # 6. Extract audio using FFmpeg
@@ -797,3 +839,101 @@ def summarize_video(request: SummarizeRequest, db: Session = Depends(get_db)):
         "detailed_summary": summary.detailed_summary,
         "status": summary.status,
     }
+
+
+@app.get("/videos/{video_id}")
+def get_video_detail(
+    video_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return a user's stored transcript, key moments, and summary."""
+    video = (
+        db.query(models.Video)
+        .filter(
+            models.Video.id == video_id,
+            models.Video.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    transcript = (
+        db.query(models.Transcript)
+        .filter(models.Transcript.video_id == video.id)
+        .order_by(models.Transcript.created_at.desc())
+        .first()
+    )
+    summary = (
+        db.query(models.Summary)
+        .filter(models.Summary.video_id == video.id)
+        .order_by(models.Summary.created_at.desc())
+        .first()
+    )
+    topics = (
+        db.query(models.Topic)
+        .filter(models.Topic.video_id == video.id)
+        .order_by(models.Topic.topic_id.asc())
+        .all()
+    )
+
+    return {
+        "id": video.id,
+        "filename": video.filename,
+        "status": video.status,
+        "duration_seconds": video.duration_seconds,
+        "keywords": [
+            keyword.strip() for keyword in (video.keywords or "").split(",")
+            if keyword.strip()
+        ],
+        "uploaded_at": video.uploaded_at.isoformat() if video.uploaded_at else None,
+        "transcript": {
+            "text": transcript.transcript_text if transcript else "",
+            "status": transcript.status if transcript else "not_started",
+        },
+        "topics": [
+            {
+                "topic_id": topic.topic_id,
+                "start_time": topic.start_time,
+                "end_time": topic.end_time,
+                "text": topic.text,
+            }
+            for topic in topics
+        ],
+        "summary": (
+            {
+                "short_summary": summary.short_summary,
+                "detailed_summary": summary.detailed_summary,
+                "status": summary.status,
+            }
+            if summary
+            else None
+        ),
+    }
+
+
+@app.get("/videos/{video_id}/media")
+def get_video_media(
+    video_id: int,
+    current_user: models.User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Stream an owned uploaded video for library playback."""
+    video = (
+        db.query(models.Video)
+        .filter(
+            models.Video.id == video_id,
+            models.Video.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not video:
+        raise HTTPException(status_code=404, detail="Video not found")
+
+    video_path = Path(video.file_path).resolve()
+    upload_root = UPLOAD_DIR.resolve()
+    if upload_root not in video_path.parents or not video_path.is_file():
+        raise HTTPException(status_code=404, detail="Video file not found")
+
+    return FileResponse(video_path, media_type="video/mp4", filename=video.filename)
