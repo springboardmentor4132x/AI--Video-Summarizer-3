@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { apiClient } from "../api/client";
+import { Check, Download, FileVideo, Pause, Play, RotateCcw, Search, Upload, Volume2, X } from "lucide-react";
 
 const STATUS = {
   NOT_STARTED: "not_started",
@@ -14,6 +15,9 @@ export default function VideoUploader() {
 
   const [videoId, setVideoId] = useState(null);
   const [transcript, setTranscript] = useState("");
+  const [segments, setSegments] = useState([]);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [videoTime, setVideoTime] = useState(0);
   const [topics, setTopics] = useState([]);
   const [keywords, setKeywords] = useState([]);
   const [transcriptStatus, setTranscriptStatus] = useState(STATUS.NOT_STARTED);
@@ -23,12 +27,90 @@ export default function VideoUploader() {
   const [summaryStatus, setSummaryStatus] = useState(STATUS.NOT_STARTED);
   const [summaryError, setSummaryError] = useState("");
   const [summaryGeneratedAt, setSummaryGeneratedAt] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [fileError, setFileError] = useState("");
+  const [processingStage, setProcessingStage] = useState(0);
+  const [transcriptSearch, setTranscriptSearch] = useState("");
+  const [topicFilter, setTopicFilter] = useState("all");
+  const videoRef = useRef(null);
+  const transcriptRef = useRef(null);
+  const videoUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+
+  useEffect(() => {
+    return () => {
+      if (videoUrl) URL.revokeObjectURL(videoUrl);
+    };
+  }, [videoUrl]);
+
+  const activeSegment = segments.findIndex(
+    (segment) => videoTime >= segment.start && videoTime < segment.end
+  );
+  const activeTopic = topics.find(
+    (topic) => videoTime >= topic.start_time && videoTime < topic.end_time
+  );
+  const filteredSegments = segments
+    .map((segment, index) => ({ segment, index }))
+    .filter(({ segment }) => {
+      const matchesSearch = !transcriptSearch.trim()
+        || segment.text.toLowerCase().includes(transcriptSearch.trim().toLowerCase());
+      const selectedTopic = topics.find((topic) => String(topic.topic_id) === topicFilter);
+      const matchesTopic = topicFilter === "all"
+        || (selectedTopic && segment.start >= selectedTopic.start_time && segment.end <= selectedTopic.end_time);
+      return matchesSearch && matchesTopic;
+    });
+
+  useEffect(() => {
+    if (activeSegment < 0 || !transcriptRef.current) return;
+    transcriptRef.current.querySelector(`[data-segment="${activeSegment}"]`)?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+    });
+  }, [activeSegment]);
+
+  useEffect(() => {
+    if (transcriptStatus !== STATUS.PROCESSING) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setProcessingStage((current) => Math.min(current + 1, 3));
+    }, 1800);
+
+    return () => window.clearInterval(timer);
+  }, [transcriptStatus]);
+
+  const validateAndSetFile = (selectedFile) => {
+    setFileError("");
+    if (!selectedFile) return;
+
+    if (!selectedFile.name.toLowerCase().endsWith(".mp4") || (selectedFile.type && selectedFile.type !== "video/mp4")) {
+      setFile(null);
+      setFileError("Please choose an MP4 video file.");
+      return;
+    }
+
+    if (selectedFile.size > 100 * 1024 * 1024) {
+      setFile(null);
+      setFileError("This video is larger than the 100 MB limit.");
+      return;
+    }
+
+    setFile(selectedFile);
+    setTranscriptError("");
+    setSummaryError("");
+    setProcessingStage(0);
+    setTranscriptSearch("");
+    setTopicFilter("all");
+  };
 
   const handleFileChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-      setTranscriptError("");
-    }
+    validateAndSetFile(e.target.files?.[0]);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    validateAndSetFile(e.dataTransfer.files?.[0]);
   };
 
   const handleUpload = async (e) => {
@@ -36,6 +118,7 @@ export default function VideoUploader() {
     if (!file || transcriptStatus === STATUS.PROCESSING) return;
 
     setTranscriptError("");
+    setProcessingStage(0);
     setTranscriptStatus(STATUS.PROCESSING);
 
     try {
@@ -52,6 +135,7 @@ export default function VideoUploader() {
 
       setVideoId(res.data.video_id);
       setTranscript(res.data.transcript);
+      setSegments(res.data.segments || []);
       setTopics(res.data.topics || []);
       setKeywords(res.data.keywords || []);
       setTranscriptStatus(STATUS.COMPLETED);
@@ -100,6 +184,9 @@ export default function VideoUploader() {
     setFile(null);
     setVideoId(null);
     setTranscript("");
+    setSegments([]);
+    setIsPlaying(false);
+    setVideoTime(0);
     setTopics([]);
     setKeywords([]);
     setTranscriptStatus(STATUS.NOT_STARTED);
@@ -108,12 +195,36 @@ export default function VideoUploader() {
     setSummaryStatus(STATUS.NOT_STARTED);
     setSummaryError("");
     setSummaryGeneratedAt(null);
+    setProcessingStage(0);
   };
 
   const formatTime = (s) => {
     const m = Math.floor(s / 60);
     const sec = Math.floor(s % 60);
     return `${m}:${sec.toString().padStart(2, "0")}`;
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return "0 MB";
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const seekTo = (time) => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = time;
+    videoRef.current.play();
+    setIsPlaying(true);
+  };
+
+  const togglePlayback = () => {
+    if (!videoRef.current) return;
+    if (videoRef.current.paused) {
+      videoRef.current.play();
+      setIsPlaying(true);
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
   };
 
   const downloadHighlightReport = () => {
@@ -181,6 +292,28 @@ export default function VideoUploader() {
     cursor: "pointer",
     marginTop: "8px",
   };
+  const iconButtonStyle = {
+    width: "36px",
+    height: "36px",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "var(--bg)",
+    color: "var(--text)",
+    border: "1px solid var(--border)",
+    borderRadius: "8px",
+    cursor: "pointer",
+  };
+  const compactControlStyle = {
+    height: "34px",
+    background: "var(--bg)",
+    color: "var(--text)",
+    border: "1px solid var(--border)",
+    borderRadius: "7px",
+    padding: "0 10px",
+    fontSize: "11px",
+    outline: "none",
+  };
   const statusBadge = (status) => {
     const map = {
       [STATUS.NOT_STARTED]: { text: "Not started", color: "var(--text-muted)" },
@@ -197,8 +330,8 @@ export default function VideoUploader() {
   };
 
   return (
-    <div style={{ padding: "48px 24px", minHeight: "100%" }}>
-      <div style={cardStyle}>
+    <div style={{ padding: "32px 24px", minHeight: "100%" }}>
+      <div style={{ ...cardStyle, maxWidth: step === "upload" ? "480px" : "1180px" }}>
         <div style={{ display: "flex", gap: "18px", marginBottom: "24px" }}>
           <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>
             Transcript: {statusBadge(transcriptStatus)}
@@ -211,12 +344,22 @@ export default function VideoUploader() {
         {step === "upload" && (
           <>
             <p style={titleStyle}>Upload Video</p>
-            <p style={subStyle}>Select an MP4 file to begin.</p>
+            <p style={subStyle}>Drop an MP4 here or browse your computer. Maximum size: 100 MB.</p>
 
-            {transcriptError && <p style={errorStyle}>{transcriptError}</p>}
+            {(fileError || transcriptError) && (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "8px", background: "color-mix(in srgb, var(--danger) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)", borderRadius: "8px", padding: "10px 12px", marginBottom: "14px" }}>
+                <X size={15} color="var(--danger)" style={{ flexShrink: 0, marginTop: "1px" }} />
+                <p style={{ ...errorStyle, margin: 0 }}>{fileError || transcriptError}</p>
+              </div>
+            )}
 
             <form onSubmit={handleUpload}>
-              <div style={{ marginBottom: "10px" }}>
+              <div
+                onDragOver={(event) => { event.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                style={{ marginBottom: "10px" }}
+              >
                 <input
                   type="file"
                   accept="video/mp4"
@@ -232,15 +375,16 @@ export default function VideoUploader() {
                     alignItems: "center",
                     justifyContent: "center",
                     gap: "8px",
-                    background: "var(--bg)",
-                    border: "1px dashed var(--border)",
+                    background: isDragging ? "var(--accent-bg)" : "var(--bg)",
+                    border: isDragging ? "1px dashed var(--accent)" : "1px dashed var(--border)",
                     borderRadius: "8px",
-                    padding: "36px 16px",
+                    padding: "30px 16px",
                     cursor: "pointer",
                     textAlign: "center",
+                    transition: "background 160ms ease, border-color 160ms ease",
                   }}
                 >
-                  <span style={{ fontSize: "22px" }}>📁</span>
+                  <Upload size={23} color="var(--accent)" />
                   <span
                     style={{
                       fontSize: "12px",
@@ -248,19 +392,44 @@ export default function VideoUploader() {
                       fontWeight: file ? "600" : "400",
                     }}
                   >
-                    {file ? file.name : "Click to select video"}
+                    {file ? file.name : isDragging ? "Release to add video" : "Drag and drop your MP4 here"}
                   </span>
+                  {!file && <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>or click to browse files</span>}
                 </label>
               </div>
+
+              {file && !fileError && (
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "10px 12px", marginBottom: "10px" }}>
+                  <FileVideo size={18} color="var(--accent)" style={{ flexShrink: 0 }} />
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <p style={{ fontSize: "12px", fontWeight: "600", color: "var(--text)", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</p>
+                    <p style={{ fontSize: "11px", color: "var(--text-muted)", margin: "3px 0 0" }}>{formatFileSize(file.size)} · MP4 video ready</p>
+                  </div>
+                  <Check size={16} color="var(--success)" />
+                </div>
+              )}
+
+              {transcriptStatus === STATUS.PROCESSING && (
+                <div style={{ margin: "14px 0 4px", padding: "12px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "12px", fontWeight: "700", color: "var(--text)" }}>Preparing your analysis</span>
+                    <span style={{ fontSize: "11px", color: "var(--text-muted)" }}>This may take a moment</span>
+                  </div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", marginBottom: "10px" }}>
+                    {["Upload", "Extract audio", "Transcribe", "Analyze"].map((stage, index) => (
+                      <div key={stage} style={{ height: "4px", borderRadius: "4px", background: index <= processingStage ? "var(--accent)" : "var(--border)", transition: "background 300ms ease" }} />
+                    ))}
+                  </div>
+                  <p style={{ fontSize: "11px", color: "var(--accent)", margin: 0 }}>{["Uploading video…", "Extracting audio…", "Transcribing speech…", "Finding key moments…"][processingStage]}</p>
+                </div>
+              )}
 
               <button
                 type="submit"
                 disabled={!file || transcriptStatus === STATUS.PROCESSING}
                 style={buttonStyle(!file || transcriptStatus === STATUS.PROCESSING)}
               >
-                {transcriptStatus === STATUS.PROCESSING
-                  ? "Uploading & transcribing…"
-                  : "Generate Transcript"}
+                {transcriptStatus === STATUS.PROCESSING ? "Processing video…" : transcriptStatus === STATUS.FAILED ? "Retry processing" : "Generate Transcript"}
               </button>
             </form>
           </>
@@ -269,62 +438,111 @@ export default function VideoUploader() {
         {step === "transcript" && (
           <>
             <p style={titleStyle}>Transcript</p>
-            <p style={subStyle}>{file?.name || "Video"}</p>
+            <p style={subStyle}>{file?.name || "Video"} · {formatFileSize(file?.size)}</p>
 
-            <p style={labelStyle}>Transcript</p>
-            <div
-              style={{
-                maxHeight: "140px",
-                overflowY: "auto",
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                padding: "12px 14px",
-              }}
-            >
-              <p style={bodyStyle}>{transcript || "No transcript available."}</p>
-            </div>
-
-            {keywords.length > 0 && (
-              <>
-                <p style={labelStyle}>Keywords</p>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "4px" }}>
-                  {keywords.map((kw) => (
-                    <span
-                      key={kw}
-                      style={{
-                        fontSize: "11px",
-                        fontWeight: "600",
-                        color: "var(--accent-text)",
-                        background: "var(--accent)",
-                        padding: "3px 9px",
-                        borderRadius: "12px",
-                      }}
-                    >
-                      {kw}
-                    </span>
-                  ))}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px", alignItems: "start" }}>
+              <section>
+                <div style={{ background: "#101418", borderRadius: "10px", overflow: "hidden", border: "1px solid var(--border)" }}>
+                  <video
+                    ref={videoRef}
+                    src={videoUrl}
+                    controls
+                    onTimeUpdate={(event) => setVideoTime(event.currentTarget.currentTime)}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                    onEnded={() => setIsPlaying(false)}
+                    style={{ display: "block", width: "100%", maxHeight: "420px", background: "#101418" }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 12px" }}>
+                    <button type="button" onClick={togglePlayback} style={iconButtonStyle} aria-label={isPlaying ? "Pause video" : "Play video"}>
+                      {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+                    </button>
+                    <Volume2 size={16} color="var(--text-muted)" />
+                    <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>{formatTime(videoTime)}</span>
+                    <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--text-muted)" }}>Click a transcript line to jump</span>
+                  </div>
                 </div>
-              </>
-            )}
+
+                {keywords.length > 0 && (
+                  <>
+                    <p style={labelStyle}>Keywords</p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "4px" }}>
+                      {keywords.map((kw) => (
+                        <button key={kw} type="button" onClick={() => { setTranscriptSearch(kw); setTopicFilter("all"); }} style={{ fontSize: "11px", fontWeight: "600", color: "var(--accent-text)", background: "var(--accent)", padding: "3px 9px", borderRadius: "12px", border: "none", cursor: "pointer" }}>{kw}</button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </section>
+
+              <section>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", margin: "16px 0 8px" }}>
+                  <p style={{ ...labelStyle, margin: 0 }}>Timestamped transcript</p>
+                  <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>{filteredSegments.length}/{segments.length} lines</span>
+                </div>
+                <div style={{ display: "flex", gap: "7px", marginBottom: "8px" }}>
+                  <div style={{ position: "relative", flex: 1 }}>
+                    <Search size={14} color="var(--text-muted)" style={{ position: "absolute", left: "10px", top: "10px" }} />
+                    <input
+                      value={transcriptSearch}
+                      onChange={(event) => setTranscriptSearch(event.target.value)}
+                      placeholder="Search transcript"
+                      aria-label="Search transcript"
+                      style={{ ...compactControlStyle, width: "100%", paddingLeft: "30px" }}
+                    />
+                  </div>
+                  {transcriptSearch && (
+                    <button type="button" onClick={() => setTranscriptSearch("")} style={{ ...iconButtonStyle, width: "34px", height: "34px" }} aria-label="Clear transcript search">
+                      <X size={14} />
+                    </button>
+                  )}
+                </div>
+                {topics.length > 0 && (
+                  <select value={topicFilter} onChange={(event) => setTopicFilter(event.target.value)} aria-label="Filter transcript by topic" style={{ ...compactControlStyle, width: "100%", marginBottom: "8px" }}>
+                    <option value="all">All topics</option>
+                    {topics.map((topic) => <option key={topic.topic_id} value={topic.topic_id}>Topic {topic.topic_id} · {formatTime(topic.start_time)} - {formatTime(topic.end_time)}</option>)}
+                  </select>
+                )}
+                <div ref={transcriptRef} style={{ maxHeight: "390px", overflowY: "auto", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "8px", padding: "8px" }}>
+                  {filteredSegments.length > 0 ? filteredSegments.map(({ segment, index }) => (
+                    <button
+                      type="button"
+                      key={`${segment.start}-${index}`}
+                      data-segment={index}
+                      onClick={() => seekTo(segment.start)}
+                      style={{ display: "block", width: "100%", textAlign: "left", background: activeSegment === index ? "var(--accent-bg)" : "transparent", border: "none", borderLeft: activeSegment === index ? "3px solid var(--accent)" : "3px solid transparent", borderRadius: "4px", padding: "9px 10px", cursor: "pointer", transition: "background 160ms ease, border-color 160ms ease" }}
+                    >
+                      <span style={{ display: "block", fontSize: "10px", fontWeight: "700", color: "var(--accent)", marginBottom: "3px" }}>{formatTime(segment.start)} – {formatTime(segment.end)}</span>
+                      <span style={{ fontSize: "12px", lineHeight: "1.5", color: "var(--text)" }}>{segment.text}</span>
+                    </button>
+                  )) : <p style={bodyStyle}>No timestamped transcript available.</p>}
+                </div>
+                {segments.length > 0 && filteredSegments.length === 0 && (
+                  <button type="button" onClick={() => { setTranscriptSearch(""); setTopicFilter("all"); }} style={{ ...secondaryButtonStyle, marginTop: "8px" }}>
+                    Clear filters
+                  </button>
+                )}
+              </section>
+            </div>
 
             {topics.length > 0 && (
               <>
-                <p style={labelStyle}>Key Moments ({topics.length} topics)</p>
+                <p style={labelStyle}>Key Moments ({topics.length} topics){activeTopic ? ` · Topic ${activeTopic.topic_id} playing` : ""}</p>
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "8px", maxHeight: "180px", overflowY: "auto" }}>
                   {topics.map((topic) => (
                     <div
                       key={topic.topic_id}
                       style={{
-                        background: "var(--bg)",
-                        border: "1px solid var(--border)",
+                        background: activeTopic?.topic_id === topic.topic_id ? "var(--accent-bg)" : "var(--bg)",
+                        border: activeTopic?.topic_id === topic.topic_id ? "1px solid var(--accent)" : "1px solid var(--border)",
                         borderRadius: "6px",
                         padding: "8px 10px",
+                        transition: "background 160ms ease, border-color 160ms ease",
                       }}
                     >
-                      <p style={{ fontSize: "11px", fontWeight: "700", color: "var(--accent)", margin: "0 0 3px" }}>
+                      <button type="button" onClick={() => { setTopicFilter(String(topic.topic_id)); setTranscriptSearch(""); seekTo(topic.start_time); }} style={{ display: "block", background: "none", border: "none", padding: 0, fontSize: "11px", fontWeight: "700", color: "var(--accent)", margin: "0 0 3px", cursor: "pointer" }}>
                         {formatTime(topic.start_time)} – {formatTime(topic.end_time)} · Topic {topic.topic_id}
-                      </p>
+                      </button>
                       <p style={{ fontSize: "12px", color: "var(--text)", margin: 0, lineHeight: "1.4" }}>
                         {topic.text.length > 140 ? topic.text.slice(0, 140) + "…" : topic.text}
                       </p>
@@ -332,7 +550,7 @@ export default function VideoUploader() {
                   ))}
                 </div>
                 <button onClick={downloadHighlightReport} style={secondaryButtonStyle}>
-                  ⬇ Download Highlight Report
+                  <Download size={14} style={{ verticalAlign: "middle", marginRight: "6px" }} /> Download Highlight Report
                 </button>
               </>
             )}
@@ -351,7 +569,7 @@ export default function VideoUploader() {
                 : "Generate Summary"}
             </button>
             <button onClick={resetAll} style={secondaryButtonStyle}>
-              Upload a different video
+              <RotateCcw size={14} style={{ verticalAlign: "middle", marginRight: "6px" }} /> Upload a different video
             </button>
           </>
         )}
