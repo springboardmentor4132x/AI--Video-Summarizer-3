@@ -5,6 +5,7 @@ const NAV_ITEMS = [
   { key: "home", label: "Home", icon: "🏠" },
   { key: "dashboard", label: "Dashboard", icon: "📊" },
   { key: "upload", label: "Upload Video", icon: "⬆️" },
+  { key: "library", label: "Video Library", icon: "🎞️" },
 ];
 
 export default function Sidebar({ user, active, onNavigate, onLogout }) {

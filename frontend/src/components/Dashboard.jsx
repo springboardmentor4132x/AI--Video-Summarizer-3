@@ -13,7 +13,6 @@ import {
   YAxis,
 } from "recharts";
 import { apiClient } from "../api/client";
-import { UploadHistory } from "./UploadHistory";
 
 const CHART_COLORS = ["#F0A202", "#2F855A", "#C0392B", "#6B6F76"];
 
@@ -62,7 +61,6 @@ export default function Dashboard({ user, onUploadClick }) {
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [libraryVideoId, setLibraryVideoId] = useState(null);
 
   useEffect(() => {
     const fetchAnalytics = async () => {
@@ -126,17 +124,6 @@ export default function Dashboard({ user, onUploadClick }) {
     processing: "var(--warning)",
     failed: "var(--danger)",
   }[status] || "var(--text-muted)");
-
-  if (libraryVideoId) {
-    return (
-      <div className="dashboard-page" style={{ padding: "34px clamp(20px, 4vw, 52px)", maxWidth: "1240px", width: "100%" }}>
-        <UploadHistory
-          initialVideoId={libraryVideoId}
-          onBack={() => setLibraryVideoId(null)}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="dashboard-page" style={{ padding: "34px clamp(20px, 4vw, 52px)", maxWidth: "1240px", width: "100%" }}>
@@ -212,8 +199,6 @@ export default function Dashboard({ user, onUploadClick }) {
             {sectionTitle("Recent videos", "Your latest uploads and their processing status")}
             {recentVideos.length > 0 ? <div style={{ display: "flex", flexDirection: "column" }}>{recentVideos.map((video, index) => <div key={video.id} className="dashboard-log" style={{ display: "flex", alignItems: "center", gap: "14px", padding: "12px 8px", borderBottom: index < recentVideos.length - 1 ? "1px solid var(--border)" : "none" }}><div style={{ width: "34px", height: "34px", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--accent)", background: "var(--accent-bg)", borderRadius: "7px", flexShrink: 0 }}><Film size={16} /></div><div style={{ minWidth: 0, flex: 1 }}><p style={{ color: "var(--text)", fontSize: "13px", fontWeight: "650", margin: "0 0 3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{video.filename}</p><p style={{ color: "var(--text-muted)", fontSize: "11px", margin: 0 }}>{video.duration_seconds ? formatDuration(video.duration_seconds) : "Duration unavailable"}{video.uploaded_at && ` · ${new Date(video.uploaded_at).toLocaleDateString()}`}</p></div><span style={{ color: statusColor(video.status), fontSize: "10px", fontWeight: "800", textTransform: "uppercase", letterSpacing: "0.06em" }}>{video.status}</span></div>)}</div> : <EmptyChart text="Your uploaded videos will appear here." />}
           </div>
-
-          <UploadHistory onOpenVideo={(videoId) => setLibraryVideoId(videoId)} />
 
           <div style={{ ...cardStyle, display: "flex", alignItems: "center", justifyContent: "space-between", gap: "16px", flexWrap: "wrap", background: "var(--bg-sidebar)", borderColor: "var(--bg-sidebar)" }}>
             <div><p style={{ color: "#F4F3EF", fontSize: "15px", fontWeight: "700", margin: "0 0 4px" }}>Turn the next video into insight.</p><p style={{ color: "#A8ABB3", fontSize: "12px", margin: 0 }}>Upload an MP4 to create a transcript, key moments, and summary.</p></div>

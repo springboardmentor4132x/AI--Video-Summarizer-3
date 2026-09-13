@@ -7,11 +7,13 @@ import VideoUploader from "./components/VideoUploader";
 import LandingPage from "./components/LandingPage";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
+import { UploadHistory } from "./components/UploadHistory";
 
 function MainApp() {
   const { user, logout } = useContext(AuthContext) || {};
   const [screen, setScreen] = useState("landing");
   const [activeTab, setActiveTab] = useState("upload");
+  const [libraryVideoId, setLibraryVideoId] = useState(null);
 
   if (user) {
     if (activeTab === "home") {
@@ -39,6 +41,14 @@ function MainApp() {
           {activeTab === "upload" && <VideoUploader />}
           {activeTab === "dashboard" && (
             <Dashboard user={user} onUploadClick={() => setActiveTab("upload")} />
+          )}
+          {activeTab === "library" && (
+            <UploadHistory
+              key={libraryVideoId ?? "library-list"}
+              initialVideoId={libraryVideoId}
+              onOpenVideo={setLibraryVideoId}
+              onBack={() => setLibraryVideoId(null)}
+            />
           )}
         </div>
       </div>
