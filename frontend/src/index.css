@@ -1,8 +1,11 @@
+<<<<<<< HEAD
 
 @import "tailwindcss";
 
 @variant dark (&:where(.dark, .dark *));
 
+=======
+>>>>>>> 6405c7b05fdff16e70d270d71c6b9e81127d6f7e
 * {
   box-sizing: border-box;
 }
@@ -12,4 +15,11 @@ html, body, #root {
   padding: 0;
   width: 100%;
   min-height: 100vh;
+<<<<<<< HEAD
+=======
+}
+
+body {
+  background: var(--bg);
+>>>>>>> 6405c7b05fdff16e70d270d71c6b9e81127d6f7e
 }
