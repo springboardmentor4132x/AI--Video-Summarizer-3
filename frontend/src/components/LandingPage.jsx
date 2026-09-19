@@ -1,146 +1,178 @@
 import React from "react";
-import { useTheme } from "../context/ThemeContext";
+import { Sparkles, ArrowRight, Zap, Cpu, Activity } from "lucide-react";
+import { useReveal } from "../hooks/useReveal";
+
+const FEATURE_CARDS = [
+  {
+    icon: Zap,
+    label: "Fast",
+    labelColor: "text-emerald-400",
+    iconBg:
+      "bg-emerald-500/10 border-emerald-500/20 text-emerald-400 group-hover:bg-emerald-500/20",
+    shadow: "hover:shadow-emerald-500/5",
+    title: "Transcription",
+    desc: "FFmpeg + Whisper pipeline for lightning-fast transcript processing.",
+  },
+  {
+    icon: Cpu,
+    label: "AI-Powered",
+    labelColor: "text-amber-400",
+    iconBg:
+      "bg-amber-500/10 border-amber-500/20 text-amber-400 group-hover:bg-amber-500/20",
+    shadow: "hover:shadow-amber-500/5",
+    title: "Summarization",
+    desc: "Short + detailed summaries generated automatically from content context.",
+  },
+  {
+    icon: Activity,
+    label: "Tracked",
+    labelColor: "text-indigo-400",
+    iconBg:
+      "bg-indigo-500/10 border-indigo-500/20 text-indigo-400 group-hover:bg-indigo-500/20",
+    shadow: "hover:shadow-indigo-500/5",
+    title: "Status Flow",
+    desc: "Live processing states and real-time backend status feedback.",
+  },
+];
 
 export default function LandingPage({ onGetStarted, onSignIn }) {
-  const { theme, toggleTheme } = useTheme();
+  const headerIn = useReveal(0);
+  const badgeIn = useReveal(100);
+  const headingIn = useReveal(200);
+  const subIn = useReveal(320);
+  const ctaIn = useReveal(420);
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg)", color: "var(--text)" }}>
-      {/* Nav */}
-      <nav
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "20px 40px",
-          borderBottom: "1px solid var(--border)",
-        }}
+    <div className="relative min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between overflow-hidden">
+      {/* Background Animated Glows */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-amber-500/10 rounded-full blur-[120px] pointer-events-none animate-pulse" />
+      <div className="absolute top-1/3 left-1/3 w-[300px] h-[300px] bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
+
+      {/* Top Navbar */}
+      <header
+        className={`relative z-10 flex items-center justify-between px-8 py-6 max-w-7xl mx-auto w-full transition-all duration-500 ease-out ${
+          headerIn ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-3"
+        }`}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <span
-            style={{
-              width: "10px",
-              height: "10px",
-              borderRadius: "50%",
-              background: "var(--accent)",
-              display: "inline-block",
-            }}
-          />
-          <span style={{ fontSize: "18px", fontWeight: "700" }}>ClipMind AI</span>
+        <div className="flex items-center gap-2">
+          <Sparkles className="w-6 h-6 text-amber-400 animate-spin-slow" />
+          <span className="font-bold text-xl tracking-tight text-white">
+            ClipMind <span className="text-amber-400">AI</span>
+          </span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <button
-            onClick={toggleTheme}
-            style={{
-              background: "transparent",
-              border: "1px solid var(--border)",
-              borderRadius: "6px",
-              padding: "6px 10px",
-              cursor: "pointer",
-              color: "var(--text)",
-              fontSize: "13px",
-            }}
-          >
-            {theme === "light" ? "🌙 Dark" : "☀️ Light"}
-          </button>
+        <div className="flex items-center gap-4">
           <button
             onClick={onSignIn}
-            style={{ background: "none", border: "none", color: "var(--text)", fontSize: "14px", cursor: "pointer" }}
+            className="text-xs font-semibold text-slate-300 hover:text-white transition-colors duration-200 px-4 py-2"
           >
             Sign In
           </button>
           <button
             onClick={onGetStarted}
-            style={{
-              background: "var(--accent)",
-              color: "var(--accent-text)",
-              border: "none",
-              borderRadius: "8px",
-              padding: "10px 18px",
-              fontSize: "14px",
-              fontWeight: "600",
-              cursor: "pointer",
-            }}
+            className="text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 px-5 py-2.5 rounded-xl shadow-lg shadow-amber-500/20 hover:shadow-amber-500/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200"
           >
             Get Started
           </button>
         </div>
-      </nav>
+      </header>
 
-      {/* Hero */}
-      <div style={{ textAlign: "center", padding: "100px 20px 60px", maxWidth: "820px", margin: "0 auto" }}>
+      {/* Hero Section */}
+      <main className="relative z-10 max-w-5xl mx-auto px-6 pt-12 pb-16 text-center flex flex-col items-center">
+        {/* Badge */}
         <div
-          style={{
-            display: "inline-block",
-            fontSize: "12px",
-            padding: "6px 14px",
-            borderRadius: "20px",
-            border: "1px solid var(--border)",
-            color: "var(--text-muted)",
-            marginBottom: "28px",
-          }}
+          className={`inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/90 border border-slate-800/80 text-amber-400 text-xs font-medium mb-8 backdrop-blur-md hover:border-amber-500/40 hover:scale-105 transition-all duration-300 cursor-default shadow-sm ${
+            badgeIn ? "opacity-100 translate-y-0" : "opacity-0 translate-y-3"
+          }`}
+          style={{ transitionProperty: "opacity, transform" }}
         >
-          ⭐ ClipMind AI Video Intelligence
+          <Sparkles size={14} className="text-amber-400 animate-bounce" />
+          <span>ClipMind AI Video Intelligence</span>
         </div>
-        <h1 style={{ fontSize: "56px", fontWeight: "800", lineHeight: "1.15", margin: "0 0 24px" }}>
-          Transform Video Into
-          <br />
-          <span style={{ color: "var(--accent)" }}>Actionable Intelligence</span>
+
+        {/* Main Heading */}
+        <h1
+          className={`text-4xl md:text-6xl font-black tracking-tight leading-tight max-w-4xl transition-all duration-700 ease-out ${
+            headingIn ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"
+          }`}
+        >
+          Transform Video Into{" "}
+          <span className="bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 bg-clip-text text-transparent drop-shadow-sm">
+            Actionable Intelligence
+          </span>
         </h1>
-        <p style={{ fontSize: "18px", color: "var(--text-muted)", lineHeight: "1.6", margin: "0 0 36px" }}>
-          Extract transcripts, instant summaries, and key moments from your videos using AI.
+
+        <p
+          className={`mt-6 text-base md:text-lg text-slate-400 max-w-2xl leading-relaxed transition-all duration-700 ease-out ${
+            subIn ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"
+          }`}
+        >
+          Extract transcripts, instant summaries, and key moments from your
+          videos using AI.
         </p>
-        <div style={{ display: "flex", gap: "14px", justifyContent: "center" }}>
+
+        {/* Primary CTA */}
+        <div
+          className={`mt-8 flex items-center justify-center transition-all duration-700 ease-out ${
+            ctaIn ? "opacity-100 translate-y-0" : "opacity-0 translate-y-5"
+          }`}
+        >
           <button
             onClick={onGetStarted}
-            style={{
-              background: "var(--accent)",
-              color: "var(--accent-text)",
-              border: "none",
-              borderRadius: "8px",
-              padding: "14px 26px",
-              fontSize: "15px",
-              fontWeight: "600",
-              cursor: "pointer",
-            }}
+            className="group relative flex items-center gap-2 bg-gradient-to-r from-amber-500 to-amber-400 text-slate-950 font-bold text-sm px-8 py-3.5 rounded-xl shadow-xl shadow-amber-500/20 hover:shadow-amber-500/40 hover:-translate-y-1 active:translate-y-0 active:scale-95 transition-all duration-200"
           >
-            Get Started Free →
+            <span>Get Started Free</span>
+            <ArrowRight
+              size={16}
+              className="group-hover:translate-x-1 transition-transform duration-200"
+            />
           </button>
         </div>
 
-        {/* Stats */}
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
-            gap: "16px",
-            marginTop: "70px",
-          }}
-        >
-          {[
-            ["Fast", "Transcription", "FFmpeg + Whisper pipeline"],
-            ["AI-Powered", "Summarization", "Short + detailed summaries"],
-            ["Tracked", "Status Flow", "Live processing states"],
-          ].map(([big, label, sub]) => (
-            <div
-              key={label}
-              style={{
-                background: "var(--bg-elevated)",
-                border: "1px solid var(--border)",
-                borderRadius: "12px",
-                padding: "20px",
-                textAlign: "left",
-              }}
-            >
-              <p style={{ fontSize: "22px", fontWeight: "700", color: "var(--success)", margin: "0 0 4px" }}>
-                {big}
-              </p>
-              <p style={{ fontSize: "14px", fontWeight: "600", margin: "0 0 2px" }}>{label}</p>
-              <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: 0 }}>{sub}</p>
-            </div>
+        {/* Interactive Cards — staggered entrance */}
+        <div className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6 w-full text-left">
+          {FEATURE_CARDS.map((card, i) => (
+            <FeatureCard key={card.title} {...card} delay={520 + i * 130} />
           ))}
         </div>
+      </main>
+
+      <footer className="relative z-10 py-6 text-center text-xs text-slate-600 border-t border-slate-900">
+        © {new Date().getFullYear()} ClipMind AI. All rights reserved.
+      </footer>
+    </div>
+  );
+}
+
+function FeatureCard({
+  icon: Icon,
+  label,
+  labelColor,
+  iconBg,
+  shadow,
+  title,
+  desc,
+  delay,
+}) {
+  const isIn = useReveal(delay);
+
+  return (
+    <div
+      className={`group relative p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700/80 hover:bg-slate-900/90 hover:-translate-y-1.5 shadow-lg hover:shadow-2xl ${shadow} transition-all duration-300 ${
+        isIn ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
+      }`}
+    >
+      <div
+        className={`w-10 h-10 rounded-xl border flex items-center justify-center mb-4 group-hover:scale-110 group-hover:rotate-6 transition-all duration-300 ${iconBg}`}
+      >
+        <Icon size={20} />
       </div>
+      <span
+        className={`text-xs font-bold uppercase tracking-wider ${labelColor}`}
+      >
+        {label}
+      </span>
+      <h3 className="text-lg font-bold text-white mt-1">{title}</h3>
+      <p className="text-xs text-slate-400 mt-2 leading-relaxed">{desc}</p>
     </div>
   );
 }
