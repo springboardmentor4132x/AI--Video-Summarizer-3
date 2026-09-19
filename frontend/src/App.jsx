@@ -8,18 +8,14 @@ import LandingPage from "./components/LandingPage";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./components/Dashboard";
 import { UploadHistory } from "./components/UploadHistory";
-<<<<<<< HEAD
 import Settings from "./components/Settings";
 import Profile from "./components/Profile";
 import History from "./components/History";
 import Bookmarks from "./components/Bookmarks";
-=======
->>>>>>> 6405c7b05fdff16e70d270d71c6b9e81127d6f7e
 
 function MainApp() {
   const { user, logout } = useContext(AuthContext) || {};
   const [screen, setScreen] = useState("landing");
-<<<<<<< HEAD
   const [activeTab, setActiveTab] = useState("dashboard");
   const [libraryVideoId, setLibraryVideoId] = useState(null);
   const [selectedVideoId, setSelectedVideoId] = useState(null);
@@ -95,37 +91,6 @@ function MainApp() {
               user={user}
               onUploadClick={() => setActiveTab("upload")}
             />
-=======
-  const [activeTab, setActiveTab] = useState("upload");
-  const [libraryVideoId, setLibraryVideoId] = useState(null);
-
-  if (user) {
-    if (activeTab === "home") {
-      return (
-        <div style={{ display: "flex", width: "100%", minHeight: "100vh", background: "var(--bg)" }}>
-          <Sidebar user={user} active={activeTab} onNavigate={setActiveTab} onLogout={() => { logout(); setScreen("landing"); }} />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <LandingPage onGetStarted={() => setActiveTab("upload")} onSignIn={() => setActiveTab("upload")} />
-          </div>
-        </div>
-      );
-    }
-    return (
-      <div style={{ display: "flex", width: "100%", minHeight: "100vh", background: "var(--bg)" }}>
-        <Sidebar
-          user={user}
-          active={activeTab}
-          onNavigate={setActiveTab}
-          onLogout={() => {
-            logout();
-            setScreen("landing");
-          }}
-        />
-        <div style={{ flex: 1, minWidth: 0, overflow: "auto" }}>
-          {activeTab === "upload" && <VideoUploader />}
-          {activeTab === "dashboard" && (
-            <Dashboard user={user} onUploadClick={() => setActiveTab("upload")} />
->>>>>>> 6405c7b05fdff16e70d270d71c6b9e81127d6f7e
           )}
           {activeTab === "library" && (
             <UploadHistory
@@ -135,14 +100,10 @@ function MainApp() {
               onBack={() => setLibraryVideoId(null)}
             />
           )}
-<<<<<<< HEAD
           {activeTab === "settings" && (
             <Settings user={user} onLogout={handleLogout} />
           )}
         </main>
-=======
-        </div>
->>>>>>> 6405c7b05fdff16e70d270d71c6b9e81127d6f7e
       </div>
     );
   }
