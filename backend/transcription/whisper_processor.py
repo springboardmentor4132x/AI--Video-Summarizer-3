@@ -1,3 +1,16 @@
+import os
+from imageio_ffmpeg import get_ffmpeg_exe
+
+# openai-whisper internally shells out to a plain "ffmpeg" command on PATH
+# when loading audio, which is separate from the imageio_ffmpeg binary this
+# project already uses for extraction. On machines without ffmpeg installed
+# system-wide (common on Windows), that internal call fails and transcription
+# breaks even though our own extract_audio() step succeeded.
+# Fix: put the bundled ffmpeg binary's folder on PATH so Whisper finds it too.
+_ffmpeg_dir = os.path.dirname(get_ffmpeg_exe())
+if _ffmpeg_dir not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = _ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+
 import whisper
 
 

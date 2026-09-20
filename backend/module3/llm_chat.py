@@ -7,6 +7,10 @@ load_dotenv()
 
 _client = None
 
+# Groq deprecated llama-3.1-8b-instant on 08/16/26.
+# Recommended replacement per Groq's deprecation notice: openai/gpt-oss-20b
+MODEL_NAME = "openai/gpt-oss-20b"
+
 
 def get_client():
     global _client
@@ -30,7 +34,7 @@ def answer_question(question: str, transcript: str, summary: str = ""):
     user_prompt = f"Video Summary: {summary}\n\nVideo Transcript: {context}\n\nQuestion: {question}"
 
     response = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
+        model=MODEL_NAME,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -50,14 +54,19 @@ def generate_quiz_llm(transcript: str, summary: str = "", num_questions: int = 5
     system_prompt = (
         "You generate multiple-choice quiz questions from video content. "
         "Return ONLY valid JSON, no other text, no markdown fences. "
-        'Format: {"questions": [{"question": "...", "options": ["A", "B", "C", "D"], "correct_answer": "A"}]} '
-        f"Generate exactly {num_questions} questions based on the content."
+        "Each question must have exactly 4 answer options as plain text — "
+        "do NOT prefix options with letters or labels like 'A.', 'B)', etc. "
+        'The "correct_answer" field must be an EXACT, character-for-character copy '
+        'of one of the strings in "options" (same wording and punctuation). '
+        'Example: {"questions": [{"question": "What color is the sky?", '
+        '"options": ["Blue", "Red", "Green", "Yellow"], "correct_answer": "Blue"}]} '
+        f"Generate exactly {num_questions} questions based on the content below."
     )
 
     user_prompt = f"Video Summary: {summary}\n\nVideo Transcript: {context}"
 
     response = client.chat.completions.create(
-        model="llama-3.1-8b-instant",
+        model=MODEL_NAME,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -71,4 +80,5 @@ def generate_quiz_llm(transcript: str, summary: str = "", num_questions: int = 5
         raw = raw.strip("`")
         if raw.startswith("json"):
             raw = raw[4:]
+
     return json.loads(raw)

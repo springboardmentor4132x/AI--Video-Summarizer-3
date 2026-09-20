@@ -20,6 +20,36 @@ const STATUS = {
   FAILED: "failed",
 };
 
+// --- Robust quiz answer matching -------------------------------------
+// The LLM doesn't always return correct_answer in a format that exactly
+// string-matches one of the options (e.g. it may return a bare letter
+// like "A", or an option that still carries a "A. " prefix). This helper
+// tries several strategies before giving up, so scoring doesn't silently
+// break if the model's formatting drifts.
+const normalizeAnswer = (s) => (s ?? "").toString().trim().toLowerCase();
+
+const isQuizOptionCorrect = (question, option, optionIndex) => {
+  const correct = normalizeAnswer(question.correct_answer);
+  if (!correct) return false;
+
+  const opt = normalizeAnswer(option);
+  if (opt === correct) return true;
+
+  // correct_answer given as a bare letter, e.g. "A"
+  const letterIndex = "abcd".indexOf(correct);
+  if (letterIndex === optionIndex) return true;
+
+  // option text still carries a letter prefix like "A. Blue" or "A) Blue"
+  const strippedOption = opt.replace(/^[a-d][.):]\s*/, "");
+  if (strippedOption === correct) return true;
+
+  // correct_answer itself carries a letter prefix like "A. Blue"
+  const strippedCorrect = correct.replace(/^[a-d][.):]\s*/, "");
+  if (strippedCorrect && strippedCorrect === opt) return true;
+
+  return false;
+};
+
 export default function VideoUploader({ onVideoUploaded }) {
   const [step, setStep] = useState("upload");
   const [file, setFile] = useState(null);
@@ -49,6 +79,18 @@ export default function VideoUploader({ onVideoUploaded }) {
     () => (file ? URL.createObjectURL(file) : null),
     [file],
   );
+
+  // --- Chat state ---
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // --- Quiz state ---
+  const [quiz, setQuiz] = useState([]);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizError, setQuizError] = useState("");
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -214,6 +256,67 @@ export default function VideoUploader({ onVideoUploaded }) {
     }
   };
 
+  const sendChatMessage = async (e) => {
+    e.preventDefault();
+    const question = chatInput.trim();
+    if (!question || chatLoading) return;
+
+    setChatMessages((prev) => [...prev, { role: "user", text: question }]);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const res = await apiClient.post("/chat", {
+        video_id: videoId,
+        question,
+      });
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "bot", text: res.data.answer },
+      ]);
+    } catch (err) {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          role: "bot",
+          text: "Sorry, I couldn't answer that. Please try again.",
+        },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const loadQuiz = async () => {
+    setQuizLoading(true);
+    setQuizError("");
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    try {
+      const res = await apiClient.get(`/quiz/${videoId}`);
+      setQuiz(res.data.questions || []);
+      setStep("quiz");
+    } catch (err) {
+      setQuizError(
+        err?.response?.data?.detail || "Couldn't generate a quiz right now.",
+      );
+    } finally {
+      setQuizLoading(false);
+    }
+  };
+
+  const selectQuizAnswer = (questionIndex, option) => {
+    if (quizSubmitted) return;
+    setQuizAnswers((prev) => ({ ...prev, [questionIndex]: option }));
+  };
+
+  const quizScore = quiz.reduce((acc, q, i) => {
+    const picked = quizAnswers[i];
+    if (picked === undefined) return acc;
+    const optIndex = q.options.indexOf(picked);
+    return acc + (isQuizOptionCorrect(q, picked, optIndex) ? 1 : 0);
+  }, 0);
+
   const resetAll = () => {
     setStep("upload");
     setFile(null);
@@ -231,6 +334,12 @@ export default function VideoUploader({ onVideoUploaded }) {
     setSummaryError("");
     setSummaryGeneratedAt(null);
     setProcessingStage(0);
+    setChatMessages([]);
+    setChatInput("");
+    setQuiz([]);
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    setQuizError("");
   };
 
   const formatTime = (s) => {
@@ -295,12 +404,17 @@ export default function VideoUploader({ onVideoUploaded }) {
         text: "Not started",
         className: "text-slate-500 dark:text-slate-400",
       },
-      [STATUS.PROCESSING]: { text: "Processing…", className: "text-amber-500" },
+      [STATUS.PROCESSING]: {
+        text: "Processing…",
+        className: "text-amber-500",
+      },
       [STATUS.COMPLETED]: { text: "Completed", className: "text-emerald-500" },
       [STATUS.FAILED]: { text: "Failed", className: "text-rose-500" },
     };
     const s = map[status];
-    return <span className={`text-xs font-bold ${s.className}`}>{s.text}</span>;
+    return (
+      <span className={`text-xs font-bold ${s.className}`}>{s.text}</span>
+    );
   };
 
   const primaryBtnClass = (disabled) =>
@@ -726,6 +840,24 @@ export default function VideoUploader({ onVideoUploaded }) {
                 ? "Regenerating…"
                 : "Regenerate Summary"}
             </button>
+
+            <button
+              onClick={() => setStep("chat")}
+              className={`${primaryBtnClass(false)} mt-2`}
+            >
+              💬 Chat about this video
+            </button>
+            <button
+              onClick={loadQuiz}
+              disabled={quizLoading}
+              className={secondaryBtnClass}
+            >
+              {quizLoading ? "Generating quiz…" : "📝 Take a Quiz"}
+            </button>
+            {quizError && (
+              <p className="text-xs text-rose-500 mt-2">{quizError}</p>
+            )}
+
             <button
               onClick={downloadHighlightReport}
               className={secondaryBtnClass}
@@ -741,6 +873,155 @@ export default function VideoUploader({ onVideoUploaded }) {
             </button>
             <button onClick={resetAll} className={secondaryBtnClass}>
               Upload a different video
+            </button>
+          </div>
+        )}
+
+        {step === "chat" && (
+          <div className="max-w-2xl">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              Chat about this video
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-5">
+              Ask anything — answers come from the transcript and summary.
+            </p>
+
+            <div className="max-h-[320px] overflow-y-auto bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg p-3 mb-3 flex flex-col gap-2.5">
+              {chatMessages.length === 0 && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  No messages yet — ask a question about the video below.
+                </p>
+              )}
+              {chatMessages.map((m, i) => (
+                <div
+                  key={i}
+                  className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
+                    m.role === "user"
+                      ? "self-end bg-indigo-600 text-white"
+                      : "self-start bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-700"
+                  }`}
+                >
+                  {m.text}
+                </div>
+              ))}
+              {chatLoading && (
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Thinking…
+                </p>
+              )}
+            </div>
+
+            <form onSubmit={sendChatMessage} className="flex gap-2">
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ask a question about this video…"
+                className={`${compactInputClass} flex-1 h-10`}
+              />
+              <button
+                type="submit"
+                disabled={!chatInput.trim() || chatLoading}
+                className={`${primaryBtnClass(!chatInput.trim() || chatLoading)} w-auto px-5 mt-0`}
+              >
+                Send
+              </button>
+            </form>
+
+            <button
+              onClick={loadQuiz}
+              disabled={quizLoading}
+              className={secondaryBtnClass}
+            >
+              {quizLoading ? "Generating quiz…" : "📝 Take a Quiz"}
+            </button>
+            {quizError && (
+              <p className="text-xs text-rose-500 mt-2">{quizError}</p>
+            )}
+
+            <button
+              onClick={() => setStep("summary")}
+              className={secondaryBtnClass}
+            >
+              Back to summary
+            </button>
+          </div>
+        )}
+
+        {step === "quiz" && (
+          <div className="max-w-2xl">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+              Quiz
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 mb-5">
+              {quiz.length} questions generated from this video.
+            </p>
+
+            {quiz.map((q, i) => (
+              <div
+                key={i}
+                className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg px-3.5 py-3 mb-2.5"
+              >
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2.5">
+                  {i + 1}. {q.question}
+                </p>
+                <div className="flex flex-col gap-1.5">
+                  {q.options.map((opt, optIndex) => {
+                    const isSelected = quizAnswers[i] === opt;
+                    const isCorrect = isQuizOptionCorrect(q, opt, optIndex);
+
+                    let optionClass =
+                      "bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700";
+                    if (quizSubmitted) {
+                      if (isCorrect) {
+                        optionClass =
+                          "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-700";
+                      } else if (isSelected && !isCorrect) {
+                        optionClass =
+                          "bg-rose-50 dark:bg-rose-950/40 border-rose-400 dark:border-rose-700";
+                      }
+                    } else if (isSelected) {
+                      optionClass =
+                        "bg-indigo-50 dark:bg-indigo-950/30 border-indigo-400 dark:border-indigo-700";
+                    }
+
+                    return (
+                      <button
+                        key={optIndex}
+                        type="button"
+                        onClick={() => selectQuizAnswer(i, opt)}
+                        className={`text-left text-xs text-slate-800 dark:text-slate-200 rounded-md px-2.5 py-2 border transition-colors duration-150 ${optionClass} ${
+                          quizSubmitted ? "cursor-default" : "cursor-pointer"
+                        }`}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {!quizSubmitted ? (
+              <button
+                onClick={() => setQuizSubmitted(true)}
+                disabled={Object.keys(quizAnswers).length < quiz.length}
+                className={primaryBtnClass(
+                  Object.keys(quizAnswers).length < quiz.length,
+                )}
+              >
+                Submit Quiz
+              </button>
+            ) : (
+              <p className="text-base font-bold text-indigo-500 text-center my-3">
+                Score: {quizScore} / {quiz.length}
+              </p>
+            )}
+
+            <button
+              onClick={() => setStep("summary")}
+              className={secondaryBtnClass}
+            >
+              Back to summary
             </button>
           </div>
         )}
