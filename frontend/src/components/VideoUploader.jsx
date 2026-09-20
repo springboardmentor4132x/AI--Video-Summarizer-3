@@ -9,6 +9,36 @@ const STATUS = {
   FAILED: "failed",
 };
 
+// --- Robust quiz answer matching -------------------------------------
+// The LLM doesn't always return correct_answer in a format that exactly
+// string-matches one of the options (e.g. it may return a bare letter
+// like "A", or an option that still carries a "A. " prefix). This helper
+// tries several strategies before giving up, so scoring doesn't silently
+// break if the model's formatting drifts.
+const normalizeAnswer = (s) => (s ?? "").toString().trim().toLowerCase();
+
+const isQuizOptionCorrect = (question, option, optionIndex) => {
+  const correct = normalizeAnswer(question.correct_answer);
+  if (!correct) return false;
+
+  const opt = normalizeAnswer(option);
+  if (opt === correct) return true;
+
+  // correct_answer given as a bare letter, e.g. "A"
+  const letterIndex = "abcd".indexOf(correct);
+  if (letterIndex === optionIndex) return true;
+
+  // option text still carries a letter prefix like "A. Blue" or "A) Blue"
+  const strippedOption = opt.replace(/^[a-d][.):]\s*/, "");
+  if (strippedOption === correct) return true;
+
+  // correct_answer itself carries a letter prefix like "A. Blue"
+  const strippedCorrect = correct.replace(/^[a-d][.):]\s*/, "");
+  if (strippedCorrect && strippedCorrect === opt) return true;
+
+  return false;
+};
+
 export default function VideoUploader() {
   const [step, setStep] = useState("upload");
   const [file, setFile] = useState(null);
@@ -35,6 +65,18 @@ export default function VideoUploader() {
   const videoRef = useRef(null);
   const transcriptRef = useRef(null);
   const videoUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+
+  // --- Chat state ---
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+
+  // --- Quiz state ---
+  const [quiz, setQuiz] = useState([]);
+  const [quizLoading, setQuizLoading] = useState(false);
+  const [quizError, setQuizError] = useState("");
+  const [quizAnswers, setQuizAnswers] = useState({});
+  const [quizSubmitted, setQuizSubmitted] = useState(false);
 
   useEffect(() => {
     return () => {
@@ -179,6 +221,59 @@ export default function VideoUploader() {
     }
   };
 
+  const sendChatMessage = async (e) => {
+    e.preventDefault();
+    const question = chatInput.trim();
+    if (!question || chatLoading) return;
+
+    setChatMessages((prev) => [...prev, { role: "user", text: question }]);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const res = await apiClient.post("/chat", {
+        video_id: videoId,
+        question,
+      });
+      setChatMessages((prev) => [...prev, { role: "bot", text: res.data.answer }]);
+    } catch (err) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "bot", text: "Sorry, I couldn't answer that. Please try again." },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const loadQuiz = async () => {
+    setQuizLoading(true);
+    setQuizError("");
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    try {
+      const res = await apiClient.get(`/quiz/${videoId}`);
+      setQuiz(res.data.questions || []);
+      setStep("quiz");
+    } catch (err) {
+      setQuizError(err?.response?.data?.detail || "Couldn't generate a quiz right now.");
+    } finally {
+      setQuizLoading(false);
+    }
+  };
+
+  const selectQuizAnswer = (questionIndex, option) => {
+    if (quizSubmitted) return;
+    setQuizAnswers((prev) => ({ ...prev, [questionIndex]: option }));
+  };
+
+  const quizScore = quiz.reduce((acc, q, i) => {
+    const picked = quizAnswers[i];
+    if (picked === undefined) return acc;
+    const optIndex = q.options.indexOf(picked);
+    return acc + (isQuizOptionCorrect(q, picked, optIndex) ? 1 : 0);
+  }, 0);
+
   const resetAll = () => {
     setStep("upload");
     setFile(null);
@@ -196,6 +291,12 @@ export default function VideoUploader() {
     setSummaryError("");
     setSummaryGeneratedAt(null);
     setProcessingStage(0);
+    setChatMessages([]);
+    setChatInput("");
+    setQuiz([]);
+    setQuizAnswers({});
+    setQuizSubmitted(false);
+    setQuizError("");
   };
 
   const formatTime = (s) => {
@@ -595,14 +696,178 @@ export default function VideoUploader() {
             >
               {summaryStatus === STATUS.PROCESSING ? "Regenerating…" : "Regenerate Summary"}
             </button>
+
+            <button onClick={() => setStep("chat")} style={buttonStyle(false)}>
+              💬 Chat about this video
+            </button>
+            <button onClick={loadQuiz} disabled={quizLoading} style={secondaryButtonStyle}>
+              {quizLoading ? "Generating quiz…" : "📝 Take a Quiz"}
+            </button>
+            {quizError && <p style={errorStyle}>{quizError}</p>}
+
             <button onClick={downloadHighlightReport} style={secondaryButtonStyle}>
-              ⬇ Download Highlight Report
+              <Download size={14} style={{ verticalAlign: "middle", marginRight: "6px" }} /> Download Highlight Report
             </button>
             <button onClick={() => setStep("transcript")} style={secondaryButtonStyle}>
               Back to transcript
             </button>
             <button onClick={resetAll} style={secondaryButtonStyle}>
               Upload a different video
+            </button>
+          </>
+        )}
+
+        {step === "chat" && (
+          <>
+            <p style={titleStyle}>Chat about this video</p>
+            <p style={subStyle}>Ask anything — answers come from the transcript and summary.</p>
+
+            <div
+              style={{
+                maxHeight: "320px",
+                overflowY: "auto",
+                background: "var(--bg)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                padding: "12px",
+                marginBottom: "12px",
+                display: "flex",
+                flexDirection: "column",
+                gap: "10px",
+              }}
+            >
+              {chatMessages.length === 0 && (
+                <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: 0 }}>
+                  No messages yet — ask a question about the video below.
+                </p>
+              )}
+              {chatMessages.map((m, i) => (
+                <div
+                  key={i}
+                  style={{
+                    alignSelf: m.role === "user" ? "flex-end" : "flex-start",
+                    maxWidth: "85%",
+                    background: m.role === "user" ? "var(--accent)" : "var(--bg-elevated)",
+                    color: m.role === "user" ? "var(--accent-text)" : "var(--text)",
+                    border: m.role === "user" ? "none" : "1px solid var(--border)",
+                    borderRadius: "10px",
+                    padding: "8px 12px",
+                    fontSize: "13px",
+                    lineHeight: "1.5",
+                  }}
+                >
+                  {m.text}
+                </div>
+              ))}
+              {chatLoading && (
+                <p style={{ fontSize: "12px", color: "var(--text-muted)", margin: 0 }}>Thinking…</p>
+              )}
+            </div>
+
+            <form onSubmit={sendChatMessage} style={{ display: "flex", gap: "8px" }}>
+              <input
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                placeholder="Ask a question about this video…"
+                style={{ ...compactControlStyle, flex: 1, height: "40px" }}
+              />
+              <button
+                type="submit"
+                disabled={!chatInput.trim() || chatLoading}
+                style={{ ...buttonStyle(!chatInput.trim() || chatLoading), width: "auto", padding: "0 18px", marginTop: 0 }}
+              >
+                Send
+              </button>
+            </form>
+
+            <button onClick={loadQuiz} disabled={quizLoading} style={secondaryButtonStyle}>
+              {quizLoading ? "Generating quiz…" : "📝 Take a Quiz"}
+            </button>
+            {quizError && <p style={errorStyle}>{quizError}</p>}
+
+            <button onClick={() => setStep("summary")} style={secondaryButtonStyle}>
+              Back to summary
+            </button>
+          </>
+        )}
+
+        {step === "quiz" && (
+          <>
+            <p style={titleStyle}>Quiz</p>
+            <p style={subStyle}>{quiz.length} questions generated from this video.</p>
+
+            {quiz.map((q, i) => (
+              <div
+                key={i}
+                style={{
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "12px 14px",
+                  marginBottom: "10px",
+                }}
+              >
+                <p style={{ fontSize: "13px", fontWeight: "600", color: "var(--text)", margin: "0 0 10px" }}>
+                  {i + 1}. {q.question}
+                </p>
+                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {q.options.map((opt, optIndex) => {
+                    const isSelected = quizAnswers[i] === opt;
+                    const isCorrect = isQuizOptionCorrect(q, opt, optIndex);
+                    let bg = "var(--bg-elevated)";
+                    let border = "1px solid var(--border)";
+                    if (quizSubmitted) {
+                      if (isCorrect) {
+                        bg = "color-mix(in srgb, var(--success) 15%, transparent)";
+                        border = "1px solid var(--success)";
+                      } else if (isSelected && !isCorrect) {
+                        bg = "color-mix(in srgb, var(--danger) 15%, transparent)";
+                        border = "1px solid var(--danger)";
+                      }
+                    } else if (isSelected) {
+                      bg = "var(--accent-bg)";
+                      border = "1px solid var(--accent)";
+                    }
+                    return (
+                      <button
+                        key={optIndex}
+                        type="button"
+                        onClick={() => selectQuizAnswer(i, opt)}
+                        style={{
+                          textAlign: "left",
+                          fontSize: "12px",
+                          color: "var(--text)",
+                          background: bg,
+                          border,
+                          borderRadius: "6px",
+                          padding: "8px 10px",
+                          cursor: quizSubmitted ? "default" : "pointer",
+                        }}
+                      >
+                        {opt}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+
+            {!quizSubmitted ? (
+              <button
+                onClick={() => setQuizSubmitted(true)}
+                disabled={Object.keys(quizAnswers).length < quiz.length}
+                style={buttonStyle(Object.keys(quizAnswers).length < quiz.length)}
+              >
+                Submit Quiz
+              </button>
+            ) : (
+              <p style={{ fontSize: "14px", fontWeight: "700", color: "var(--accent)", textAlign: "center", margin: "12px 0" }}>
+                Score: {quizScore} / {quiz.length}
+              </p>
+            )}
+
+            <button onClick={() => setStep("summary")} style={secondaryButtonStyle}>
+              Back to summary
             </button>
           </>
         )}
