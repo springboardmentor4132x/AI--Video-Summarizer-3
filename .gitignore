@@ -20,3 +20,4 @@ test_speech.wav
 test_speech_loud.wav
 test_speech_normalized.wav
 /test_whisper.wav
+.env

@@ -40,6 +40,7 @@ from module3.keywords import extract_keywords
 from app.database import engine, Base, get_db
 from app import models
 from app.summarization import generate_summary
+from module3.llm_chat import answer_question, generate_quiz_llm
 
 
 # ---------------------------------------------------------
@@ -938,3 +939,69 @@ def get_video_media(
         raise HTTPException(status_code=404, detail="Video file not found")
 
     return FileResponse(video_path, media_type="video/mp4", filename=video.filename)
+# ---------------------------------------------------------
+# Chat over video transcript
+# ---------------------------------------------------------
+
+class ChatRequest(BaseModel):
+    video_id: int
+    question: str
+
+
+@app.post("/chat")
+def chat_with_video(request: ChatRequest, db: Session = Depends(get_db)):
+    """Ask a question about a video; answered using its transcript + summary."""
+
+    transcript = (
+        db.query(models.Transcript)
+        .filter(models.Transcript.video_id == request.video_id)
+        .first()
+    )
+
+    if not transcript or not transcript.transcript_text:
+        raise HTTPException(status_code=404, detail="Transcript not found for this video")
+
+    summary = (
+        db.query(models.Summary)
+        .filter(models.Summary.video_id == request.video_id, models.Summary.status == "completed")
+        .first()
+    )
+    summary_text = summary.short_summary if summary else ""
+
+    result = answer_question(request.question, transcript.transcript_text, summary_text)
+    return result
+
+
+# ---------------------------------------------------------
+# Quiz generation
+# ---------------------------------------------------------
+
+@app.get("/quiz/{video_id}")
+def get_quiz(video_id: int, db: Session = Depends(get_db)):
+    """Generate a multiple-choice quiz from a video's transcript + summary."""
+
+    transcript = (
+        db.query(models.Transcript)
+        .filter(models.Transcript.video_id == video_id)
+        .first()
+    )
+
+    if not transcript or not transcript.transcript_text:
+        raise HTTPException(status_code=404, detail="Transcript not found for this video")
+
+    summary = (
+        db.query(models.Summary)
+        .filter(models.Summary.video_id == video_id, models.Summary.status == "completed")
+        .first()
+    )
+
+    try:
+        quiz_data = generate_quiz_llm(
+            transcript.transcript_text,
+            summary.short_summary if summary else "",
+            num_questions=5,
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Quiz generation failed: {str(e)}")
+
+    return {"video_id": video_id, "questions": quiz_data.get("questions", [])}
