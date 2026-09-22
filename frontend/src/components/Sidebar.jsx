@@ -4,8 +4,6 @@ import {
   User,
   Upload,
   Video,
-  History,
-  Bookmark,
   Settings,
   Brain,
   VideoIcon,
@@ -21,8 +19,6 @@ const MAIN_NAV_ITEMS = [
   { key: "profile", label: "Profile", icon: User },
   { key: "upload", label: "Upload Video", icon: Upload },
   { key: "library", label: "My Videos", icon: Video },
-  { key: "history", label: "History", icon: History },
-  { key: "bookmarks", label: "Bookmarks", icon: Bookmark, badge: true },
 ];
 
 const VIDEO_SUB_ITEMS = [
@@ -38,7 +34,6 @@ export default function Sidebar({
   user,
   active,
   onNavigate,
-  bookmarkCount = 0,
   selectedVideoId,
   videoSubTab,
   onSelectSubTab,
@@ -128,11 +123,6 @@ export default function Sidebar({
                   <Icon size={15} />
                   {item.label}
                 </span>
-                {item.badge && bookmarkCount > 0 && (
-                  <span className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 text-[9px] font-bold flex items-center justify-center">
-                    {bookmarkCount}
-                  </span>
-                )}
               </button>
             );
           })}
