@@ -8,6 +8,14 @@ import {
   Play,
   RotateCcw,
   Search,
+  Sparkles,
+  FileText,
+  Tags,
+  BarChart3,
+  Lightbulb,
+  ShieldCheck,
+  Database,
+  ArrowRight,
   Upload,
   Volume2,
   X,
@@ -420,8 +428,8 @@ export default function VideoUploader({ onVideoUploaded }) {
   const primaryBtnClass = (disabled) =>
     `w-full text-center text-sm font-semibold py-3 rounded-xl transition-all duration-150 ${
       disabled
-        ? "bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed"
-        : "bg-indigo-600 text-white hover:bg-indigo-500 shadow-md shadow-indigo-600/20"
+        ? "bg-slate-200 text-slate-400 cursor-not-allowed"
+        : "bg-gradient-to-r from-violet-600 via-indigo-600 to-blue-500 text-white hover:brightness-105 shadow-lg shadow-indigo-500/30"
     }`;
   const secondaryBtnClass =
     "w-full text-center text-sm font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 rounded-xl py-2.5 mt-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors duration-150";
@@ -431,141 +439,110 @@ export default function VideoUploader({ onVideoUploaded }) {
     "h-9 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 text-xs outline-none focus:border-indigo-500";
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
-      <div className="flex items-center gap-6 px-8 pt-6 pb-2 text-sm text-slate-500 dark:text-slate-400">
+    <div className="min-h-screen bg-[#f7f8ff] dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col transition-colors duration-200">
+      <div className="flex items-center gap-6 px-8 pt-5 pb-2 text-xs text-slate-500 dark:text-slate-400">
         <span>Transcript: {statusBadge(transcriptStatus)}</span>
         <span>Summary: {statusBadge(summaryStatus)}</span>
       </div>
 
-      <div className="flex-1 px-8 pb-8 pt-4 flex flex-col min-h-0">
+      <div className="flex-1 px-8 pb-8 pt-3 flex flex-col min-h-0">
         {step === "upload" && (
-          <div className="flex-1 flex flex-col min-h-0 max-w-4xl">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-              Upload Video
-            </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              Drop an MP4 here or browse your computer. Maximum size: 100 MB.
-            </p>
+          <div className="flex-1 flex flex-col min-h-0 max-w-6xl">
+            <div className="mb-4">
+              <h1 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white">
+                Upload <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-blue-500">Your Video</span>
+              </h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                Turn your videos into transcripts, summaries and actionable insights with AI.
+              </p>
+            </div>
 
-            {(fileError || transcriptError) && (
-              <div className="flex items-start gap-2 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/50 rounded-lg px-3 py-2.5 mt-4">
-                <X size={15} className="text-rose-500 shrink-0 mt-0.5" />
-                <p className="text-xs text-rose-600 dark:text-rose-400">
-                  {fileError || transcriptError}
-                </p>
-              </div>
-            )}
+            <div className="grid grid-cols-1 xl:grid-cols-[1.35fr_0.9fr] gap-4 flex-1 min-h-0">
+              <div className="min-w-0 flex flex-col">
+                {(fileError || transcriptError) && (
+                  <div className="flex items-start gap-2 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900 rounded-lg px-3 py-2.5 mb-3">
+                    <X size={15} className="text-rose-500 shrink-0 mt-0.5" />
+                    <p className="text-xs text-rose-600 dark:text-rose-300">{fileError || transcriptError}</p>
+                  </div>
+                )}
 
-            <form
-              onSubmit={handleUpload}
-              className="flex-1 flex flex-col min-h-0 mt-4"
-            >
-              <div
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  setIsDragging(true);
-                }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={handleDrop}
-                className="flex-1 flex min-h-0"
-              >
-                <input
-                  type="file"
-                  accept="video/mp4"
-                  onChange={handleFileChange}
-                  className="hidden"
-                  id="video-file-input"
-                />
-                <label
-                  htmlFor="video-file-input"
-                  className={`flex-1 flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed cursor-pointer text-center transition-colors duration-150 min-h-[260px] ${
-                    isDragging
-                      ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30"
-                      : "border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900/50 hover:bg-slate-100 dark:hover:bg-slate-800/50"
-                  }`}
-                >
-                  <Upload size={40} className="text-indigo-500" />
-                  <span
-                    className={`text-base ${file ? "font-semibold text-slate-800 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"}`}
+                <form onSubmit={handleUpload} className="flex-1 flex flex-col min-h-0">
+                  <div
+                    onDragOver={(event) => {
+                      event.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    className="flex-1 flex min-h-0"
                   >
-                    {file
-                      ? file.name
-                      : isDragging
-                        ? "Release to add video"
-                        : "Drag and drop your MP4 here"}
-                  </span>
-                  {!file && (
-                    <span className="text-sm text-slate-400">
-                      or click to browse files
-                    </span>
+                    <input type="file" accept="video/mp4" onChange={handleFileChange} className="hidden" id="video-file-input" />
+                    <label
+                      htmlFor="video-file-input"
+                      className={`relative flex-1 flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed cursor-pointer text-center min-h-[260px] overflow-hidden transition-all duration-150 ${
+                        isDragging
+                          ? "border-violet-500 bg-violet-50"
+                          : "border-violet-300 dark:border-violet-700 bg-gradient-to-br from-white via-white to-violet-50 dark:from-slate-900 dark:via-slate-900 dark:to-violet-950/40 hover:border-violet-500"
+                      }`}
+                    >
+                      <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-violet-100 text-violet-600 px-3 py-1 text-[10px] font-bold">
+                        <Sparkles size={11} /> AI Powered
+                      </span>
+                      <div className="w-16 h-16 rounded-full bg-violet-100 flex items-center justify-center shadow-inner">
+                        <Upload size={34} className="text-violet-600" />
+                      </div>
+                      <span className="text-base font-bold text-slate-800 dark:text-slate-100">
+                        {file ? file.name : isDragging ? "Release to add video" : "Drag & drop your video here"}
+                      </span>
+                      {!file && <span className="text-xs text-slate-500 dark:text-slate-400">or <span className="text-violet-600 dark:text-violet-300 font-semibold">click to browse files</span></span>}
+                      <span className="text-[11px] text-slate-500 dark:text-slate-400">Supports MP4, MOV, AVI, MKV &nbsp;|&nbsp; Maximum size: 100 MB</span>
+                    </label>
+                  </div>
+
+                  {file && !fileError && (
+                    <div className="flex items-center gap-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2.5 mt-3">
+                      <FileVideo size={18} className="text-indigo-500 shrink-0" />
+                      <div className="min-w-0 flex-1"><p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">{file.name}</p><p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">{formatFileSize(file.size)} · MP4 video ready</p></div>
+                      <Check size={16} className="text-emerald-500" />
+                    </div>
                   )}
-                </label>
+
+                  {transcriptStatus === STATUS.PROCESSING && (
+                    <div className="mt-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
+                      <div className="flex justify-between gap-3 mb-2.5"><span className="text-xs font-bold text-slate-800 dark:text-slate-200">Preparing your analysis</span><span className="text-[11px] text-slate-400">This may take a moment</span></div>
+                      <div className="grid grid-cols-4 gap-1 mb-2.5">{["Upload", "Extract audio", "Transcribe", "Analyze"].map((stage, index) => <div key={stage} className={`h-1 rounded-full ${index <= processingStage ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-700"}`} />)}</div>
+                      <p className="text-[11px] text-indigo-500 font-semibold">{["Uploading video…", "Extracting audio…", "Transcribing speech…", "Finding key moments…"][processingStage]}</p>
+                    </div>
+                  )}
+
+                  <button type="submit" disabled={!file || transcriptStatus === STATUS.PROCESSING} className={`${primaryBtnClass(!file || transcriptStatus === STATUS.PROCESSING)} mt-4 flex items-center justify-center gap-2`}>
+                    <Sparkles size={16} />
+                    {transcriptStatus === STATUS.PROCESSING ? "Processing video…" : transcriptStatus === STATUS.FAILED ? "Retry processing" : "Generate Transcript"}
+                    <ArrowRight size={16} />
+                  </button>
+                </form>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+                  {[[Database, "Supported Formats", "MP4, MOV, AVI, MKV"], [Database, "Maximum File Size", "100 MB"], [ShieldCheck, "Secure & Private", "Your data is safe with us"]].map(([Icon, title, text]) => (
+                    <div key={title} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 flex items-center gap-2.5 shadow-sm"><Icon size={22} className="text-violet-500" /><div><p className="text-[10px] font-bold text-slate-700 dark:text-slate-200">{title}</p><p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">{text}</p></div></div>
+                  ))}
+                </div>
               </div>
 
-              {file && !fileError && (
-                <div className="flex items-center gap-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2.5 mt-3">
-                  <FileVideo size={18} className="text-indigo-500 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
-                      {file.name}
-                    </p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      {formatFileSize(file.size)} · MP4 video ready
-                    </p>
-                  </div>
-                  <Check size={16} className="text-emerald-500" />
+              <aside className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm h-fit">
+                <h2 className="text-sm font-extrabold text-slate-800 dark:text-slate-100">What would you like to generate?</h2>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 mb-3">Choose the insights you want from your video.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {[[FileText, "Transcript", "Full speech-to-text transcription", "bg-blue-100", "text-blue-500"], [Sparkles, "Summary", "Key points and highlights", "bg-pink-100", "text-pink-500"], [Tags, "Keywords", "Important topics and tags", "bg-green-100", "text-green-500"], [BarChart3, "Insights", "Detailed content analysis", "bg-orange-100", "text-orange-500"]].map(([Icon, title, text, colorBg, colorText]) => (
+                    <div key={title} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 min-h-[82px] relative"><div className={`w-8 h-8 rounded-lg ${colorBg} flex items-center justify-center mb-2`}><Icon size={17} className={colorText} /></div><p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">{title}</p><p className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 mt-0.5">{text}</p><span className="absolute top-3 right-3 w-3 h-3 rounded border border-violet-500 bg-violet-500" /></div>
+                  ))}
                 </div>
-              )}
-
-              {transcriptStatus === STATUS.PROCESSING && (
-                <div className="mt-3 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
-                  <div className="flex justify-between gap-3 mb-2.5">
-                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                      Preparing your analysis
-                    </span>
-                    <span className="text-[11px] text-slate-400">
-                      This may take a moment
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-1 mb-2.5">
-                    {["Upload", "Extract audio", "Transcribe", "Analyze"].map(
-                      (stage, index) => (
-                        <div
-                          key={stage}
-                          className={`h-1 rounded-full transition-colors duration-300 ${
-                            index <= processingStage
-                              ? "bg-indigo-600"
-                              : "bg-slate-200 dark:bg-slate-800"
-                          }`}
-                        />
-                      ),
-                    )}
-                  </div>
-                  <p className="text-[11px] text-indigo-500 font-semibold">
-                    {
-                      [
-                        "Uploading video…",
-                        "Extracting audio…",
-                        "Transcribing speech…",
-                        "Finding key moments…",
-                      ][processingStage]
-                    }
-                  </p>
+                <div className="border-t border-slate-100 dark:border-slate-800 mt-4 pt-4">
+                  <div className="flex items-center gap-2 mb-2"><Lightbulb size={17} className="text-amber-500" /><h3 className="text-xs font-bold text-slate-700 dark:text-slate-200">Quick Tips</h3></div>
+                  {["Use clear audio for better transcription", "Videos under 30 minutes work best", "Supported formats: MP4, MOV, AVI, MKV", "You’ll be notified when processing is complete"].map((tip) => <p key={tip} className="text-[10px] text-slate-500 dark:text-slate-400 flex items-start gap-2 mb-2"><Check size={13} className="text-emerald-500 shrink-0" />{tip}</p>)}
                 </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={!file || transcriptStatus === STATUS.PROCESSING}
-                className={`${primaryBtnClass(!file || transcriptStatus === STATUS.PROCESSING)} mt-4`}
-              >
-                {transcriptStatus === STATUS.PROCESSING
-                  ? "Processing video…"
-                  : transcriptStatus === STATUS.FAILED
-                    ? "Retry processing"
-                    : "Generate Transcript"}
-              </button>
-            </form>
+              </aside>
+            </div>
           </div>
         )}
 
