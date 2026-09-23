@@ -1,53 +1,109 @@
-import React, { useState, useEffect } from "react";
-import {
-  Play,
-  ArrowLeft,
-  FileText,
-  Download,
-  Edit3,
-  Bookmark,
-  Share2,
-  BarChart2,
-  Clock,
-  CheckCircle,
-  Loader2,
-} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { ArrowLeft, CheckCircle, FileText, Loader2, Play } from "lucide-react";
 import apiClient from "../api/client";
 
-export function UploadHistory({
-  initialVideoId,
-  onOpenVideo,
-  onBack,
-  subTab = "detail",
-}) {
+function formatDuration(seconds) {
+  const totalSeconds = Math.max(0, Math.floor(seconds || 0));
+  const minutes = Math.floor(totalSeconds / 60);
+  const remainingSeconds = totalSeconds % 60;
+  return `${minutes}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
+function statusLabel(status) {
+  return (status || "unknown").replaceAll("_", " ");
+}
+
+export function UploadHistory({ initialVideoId, onOpenVideo, onBack, subTab = "detail" }) {
   const [videos, setVideos] = useState([]);
   const [selectedVideo, setSelectedVideo] = useState(null);
+  const [videoDetail, setVideoDetail] = useState(null);
+  const [mediaUrl, setMediaUrl] = useState("");
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
+    let cancelled = false;
+
     const fetchVideos = async () => {
+      setLoading(true);
+      setError("");
       try {
-        const token = localStorage.getItem("token");
-        const response = await apiClient.get("/videos", {
-          headers: { authorization: `Bearer ${token}` },
-        });
-        const videoData = response.data || [];
+        const response = await apiClient.get("/videos/me");
+        if (cancelled) return;
+        const videoData = response.data.videos || [];
         setVideos(videoData);
 
         if (initialVideoId) {
           const matched = videoData.find(
-            (v) => String(v.id) === String(initialVideoId),
+            (video) => String(video.id) === String(initialVideoId),
           );
           if (matched) setSelectedVideo(matched);
         }
-      } catch (err) {
-        console.error("Failed to load videos", err);
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(
+            requestError.response?.data?.detail ||
+              "Could not load your video library.",
+          );
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     };
+
     fetchVideos();
+    return () => {
+      cancelled = true;
+    };
   }, [initialVideoId]);
+
+  useEffect(() => {
+    if (!selectedVideo) return undefined;
+
+    let cancelled = false;
+    let objectUrl = "";
+
+    const fetchVideoDetail = async () => {
+      setDetailLoading(true);
+      setError("");
+      try {
+        const detailResponse = await apiClient.get(`/videos/${selectedVideo.id}`);
+        if (cancelled) return;
+        setVideoDetail(detailResponse.data);
+
+        try {
+          const mediaResponse = await apiClient.get(
+            `/videos/${selectedVideo.id}/media`,
+            { responseType: "blob" },
+          );
+          if (!cancelled) {
+            objectUrl = URL.createObjectURL(mediaResponse.data);
+            setMediaUrl(objectUrl);
+          }
+        } catch {
+          if (!cancelled) setError("The transcript loaded, but the stored video could not be played.");
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(
+            requestError.response?.data?.detail ||
+              "Could not open the stored video.",
+          );
+        }
+      } finally {
+        if (!cancelled) setDetailLoading(false);
+      }
+    };
+
+    fetchVideoDetail();
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setVideoDetail(null);
+      setMediaUrl("");
+    };
+  }, [selectedVideo]);
 
   const handleSelect = (video) => {
     setSelectedVideo(video);
@@ -56,6 +112,8 @@ export function UploadHistory({
 
   const handleBackToList = () => {
     setSelectedVideo(null);
+    setVideoDetail(null);
+    setMediaUrl("");
     if (onBack) onBack();
   };
 
@@ -68,222 +126,158 @@ export function UploadHistory({
     );
   }
 
-  // --- VIEW 1: VIDEO DETAIL & SUB-VIEWS (MATCHING SCREENSHOTS) ---
   if (selectedVideo) {
+    const transcript = videoDetail?.transcript?.text || "";
+    const topics = videoDetail?.topics || [];
+    const keywords = videoDetail?.keywords || [];
+
     return (
       <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-6 md:p-8 space-y-6">
-        {/* Back Button Header */}
         <button
           onClick={handleBackToList}
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-emerald-600 transition"
         >
-          <ArrowLeft size={14} /> Back to Video
+          <ArrowLeft size={14} /> Back to My Videos
         </button>
 
-        {/* SUB TAB 1: VIDEO DETAIL */}
-        {subTab === "detail" && (
+        <div>
+          <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">
+            {selectedVideo.filename}
+          </h1>
+          <p className="text-xs text-slate-500 mt-1">
+            Uploaded video and previously generated transcript
+          </p>
+        </div>
+
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        {detailLoading && (
+          <div className="flex items-center gap-2 text-sm text-slate-500">
+            <Loader2 className="animate-spin" size={16} /> Opening stored video...
+          </div>
+        )}
+
+        {videoDetail && !detailLoading && (
           <div className="space-y-6">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white">
-                  {selectedVideo.filename ||
-                    selectedVideo.title ||
-                    "Physics Lecture - 1"}
-                </h1>
-                <p className="text-xs text-slate-500 mt-1">Physics</p>
-              </div>
-
-              <div className="flex items-center gap-2 flex-wrap">
-                <button className="inline-flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs px-3 py-1.5 rounded-lg shadow-sm">
-                  <Download size={13} /> PDF Report
-                </button>
-                <button className="inline-flex items-center gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs px-3 py-1.5 rounded-lg shadow-sm">
-                  <Download size={13} /> CSV Report
-                </button>
-              </div>
-            </div>
-
-            {/* Video Player & Context Panel Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-              <div className="lg:col-span-8 bg-black rounded-2xl overflow-hidden aspect-video relative flex items-center justify-center">
-                <video
-                  controls
-                  src={selectedVideo.url || selectedVideo.video_url}
-                  className="w-full h-full object-contain"
-                />
-              </div>
-
-              <div className="lg:col-span-4 space-y-4">
-                <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs flex items-center gap-2">
-                  <CheckCircle size={16} /> All AI processing complete
+            {subTab === "detail" && (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="lg:col-span-8 bg-black rounded-2xl overflow-hidden aspect-video flex items-center justify-center">
+                  <video controls src={mediaUrl} className="w-full h-full object-contain" />
                 </div>
-
-                <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-4 space-y-3">
-                  <h3 className="text-xs font-bold text-slate-900 dark:text-white">
-                    Key Moments
-                  </h3>
-                  <div className="space-y-2 text-xs">
-                    <div className="p-2.5 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-800/60">
-                      <p className="font-semibold text-slate-800 dark:text-slate-200">
-                        Introduction to Physics Concepts
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-1">
-                        0:00 - 0:14 · 24%
+                <div className="lg:col-span-4 space-y-4">
+                  <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 rounded-2xl text-xs flex items-center gap-2">
+                    <CheckCircle size={16} /> Transcript stored successfully
+                  </div>
+                  <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+                    <h2 className="text-xs font-bold mb-3">Video information</h2>
+                    <p className="text-xs text-slate-500">Status: {statusLabel(videoDetail.status)}</p>
+                    <p className="text-xs text-slate-500 mt-2">
+                      Duration: {formatDuration(videoDetail.duration_seconds)}
+                    </p>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText size={16} className="text-emerald-500" />
+                      <h2 className="text-xs font-bold">Transcript</h2>
+                    </div>
+                    <div className="max-h-72 overflow-y-auto">
+                      <p className="text-xs leading-relaxed whitespace-pre-wrap text-slate-600 dark:text-slate-300">
+                        {transcript || "No stored transcript is available."}
                       </p>
                     </div>
+                    {keywords.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-4 pt-3 border-t border-slate-200 dark:border-slate-800">
+                        {keywords.map((keyword) => (
+                          <span key={keyword} className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-lg">
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+            )}
 
-        {/* SUB TAB 2: TRANSCRIPT */}
-        {subTab === "transcript" && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
-                  Transcript
-                </h1>
-                <p className="text-xs text-slate-500 mt-1">
-                  {selectedVideo.filename}
-                </p>
-              </div>
-              <button className="inline-flex items-center gap-1.5 bg-emerald-600 text-white text-xs font-bold px-4 py-2 rounded-xl shadow-md">
-                <Edit3 size={14} /> Edit Transcript
-              </button>
-            </div>
-
-            {/* Keyword Tags */}
-            <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl space-y-2">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-                Keywords
-              </span>
-              <div className="flex flex-wrap gap-2">
-                {["speed", "distance", "physics", "average", "time"].map(
-                  (kw) => (
-                    <span
-                      key={kw}
-                      className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 px-2.5 py-1 rounded-lg"
-                    >
-                      {kw}
+            {subTab === "transcript" && (
+              <section className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <FileText size={18} className="text-emerald-500" />
+                  <h2 className="text-xl font-extrabold">Transcript</h2>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {keywords.map((keyword) => (
+                    <span key={keyword} className="text-xs bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-lg">
+                      {keyword}
                     </span>
-                  ),
-                )}
-              </div>
-            </div>
+                  ))}
+                </div>
+                <p className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl leading-relaxed text-sm whitespace-pre-wrap">
+                  {transcript || "No stored transcript is available."}
+                </p>
+              </section>
+            )}
 
-            {/* Transcript Text Box */}
-            <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl leading-relaxed text-xs text-slate-700 dark:text-slate-300 space-y-4">
-              <p>
-                {selectedVideo.transcript ||
-                  "What is going on guys? Welcome to your very first lesson in physics. Today we are going to talk about motion, speed, and distance over time..."}
-              </p>
-            </div>
-          </div>
-        )}
+            {subTab === "summary" && (
+              <section className="space-y-4">
+                <h2 className="text-xl font-extrabold">Summary</h2>
+                <div className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl text-sm whitespace-pre-wrap">
+                  {videoDetail.summary?.detailed_summary || videoDetail.summary?.short_summary || "No summary has been generated for this video yet."}
+                </div>
+              </section>
+            )}
 
-        {/* SUB TAB 3: ANALYTICS */}
-        {subTab === "analytics" && (
-          <div className="space-y-6">
-            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
-              Video Analytics
-            </h1>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <p className="text-xs text-slate-500">Total Views</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                  15
-                </p>
-              </div>
-              <div className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <p className="text-xs text-slate-500">Watch Time (min)</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                  32
-                </p>
-              </div>
-              <div className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <p className="text-xs text-slate-500 font-medium">
-                  Completion Rate
-                </p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                  99%
-                </p>
-              </div>
-              <div className="p-4 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl">
-                <p className="text-xs text-slate-500">Key Moments</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
-                  7
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* SUB TAB 4: NOTES */}
-        {subTab === "notes" && (
-          <div className="space-y-6">
-            <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
-              Video Notes
-            </h1>
-            <div className="p-6 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4">
-              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase">
-                Summary Note
-              </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                {selectedVideo.summary ||
-                  "Summary notes generated for this video will appear here."}
-              </p>
-            </div>
+            {subTab === "key-moments" && (
+              <section className="space-y-4">
+                <h2 className="text-xl font-extrabold">Key Moments</h2>
+                <div className="space-y-2">
+                  {topics.length ? topics.map((topic) => (
+                    <div key={`${topic.topic_id}-${topic.start_time}`} className="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-4 rounded-xl">
+                      <p className="text-xs font-bold">{formatDuration(topic.start_time)} - {formatDuration(topic.end_time)}</p>
+                      <p className="text-sm text-slate-600 dark:text-slate-300 mt-1">{topic.text}</p>
+                    </div>
+                  )) : <p className="text-sm text-slate-500">No key moments were stored.</p>}
+                </div>
+              </section>
+            )}
           </div>
         )}
       </div>
     );
   }
 
-  // --- VIEW 2: MY VIDEOS GRID (DEFAULT OVERVIEW) ---
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-6 md:p-10 max-w-6xl mx-auto space-y-6">
       <div className="pb-4 border-b border-slate-200 dark:border-slate-800">
-        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">
-          My Videos
-        </h1>
+        <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white">My Videos</h1>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-          Select a video to access transcript, key moments, and AI analytics.
+          Your 20 most recent uploaded videos and their generated transcripts.
         </p>
       </div>
 
+      {error && <p className="text-sm text-red-500">{error}</p>}
       {videos.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {videos.map((vid) => (
-            <div
-              key={vid.id}
-              onClick={() => handleSelect(vid)}
-              className="group bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer"
+          {videos.map((video) => (
+            <button
+              type="button"
+              key={video.id}
+              onClick={() => handleSelect(video)}
+              className="group text-left bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer"
             >
-              <div className="aspect-video bg-slate-950 relative">
-                <img
-                  src={
-                    vid.thumbnail ||
-                    "https://placehold.co/600x400/0f172a/64748b?text=Uploaded+Video"
-                  }
-                  alt=""
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                />
-                <div className="absolute inset-0 bg-slate-950/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Play size={20} className="text-white fill-current" />
-                </div>
+              <div className="aspect-video bg-slate-950 relative flex items-center justify-center">
+                <Play size={28} className="text-white fill-current opacity-80 group-hover:scale-110 transition-transform" />
+                <span className="absolute top-3 right-3 text-[10px] uppercase font-bold bg-black/60 text-white px-2 py-1 rounded">
+                  {statusLabel(video.status)}
+                </span>
               </div>
               <div className="p-4">
-                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
-                  {vid.filename}
-                </p>
+                <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{video.filename}</p>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Status: {vid.status || "Processed"}
+                  {video.duration_seconds ? `${formatDuration(video.duration_seconds)} · ` : ""}
+                  Click to open video and transcript
                 </p>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       ) : (
@@ -291,81 +285,6 @@ export function UploadHistory({
           No uploaded videos available yet.
         </div>
       )}
-
-      {selectedVideo && (
-  <section style={{ marginTop: "18px", paddingTop: "18px", borderTop: "1px solid var(--border)" }}>
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", marginBottom: "12px" }}>
-      <div style={{ minWidth: 0 }}>
-        <p style={{ color: "var(--text)", fontSize: "14px", fontWeight: "700", margin: "0 0 3px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          {selectedVideo.filename}
-        </p>
-        <p style={{ color: "var(--text-muted)", fontSize: "11px", margin: 0 }}>
-          Stored library video · click a key moment to seek
-        </p>
-      </div>
-      <button
-        type="button"
-        onClick={closeVideo}
-        aria-label="Close video viewer"
-        style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "32px", height: "32px", color: "var(--text-muted)", background: "transparent", border: "1px solid var(--border)", borderRadius: "7px", cursor: "pointer" }}
-      >
-        <X size={15} />
-      </button>
     </div>
-
-    {detailLoading && <p role="status" style={{ color: "var(--text-muted)", fontSize: "12px" }}>Opening video…</p>}
-    {detailError && <p role="alert" style={{ color: "var(--danger)", fontSize: "12px" }}>{detailError}</p>}
-
-    {selectedDetail && mediaUrl && (
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1.2fr) minmax(240px, 0.8fr)", gap: "14px" }}>
-        <div style={{ background: "#101418", borderRadius: "8px", overflow: "hidden" }}>
-          <video
-            src={mediaUrl}
-            controls
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            style={{ display: "block", width: "100%", maxHeight: "360px" }}
-          />
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 10px", color: "#B8BBC2", fontSize: "11px" }}>
-            {isPlaying ? <Pause size={14} /> : <Play size={14} />} Stored playback
-          </div>
-        </div>
-
-        <div style={{ minWidth: 0 }}>
-          <p style={{ color: "var(--text)", fontSize: "12px", fontWeight: "700", margin: "0 0 7px" }}>
-            Transcript
-          </p>
-          <div style={{ maxHeight: "180px", overflowY: "auto", padding: "10px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "7px", marginBottom: "10px" }}>
-            <p style={{ color: "var(--text)", fontSize: "11px", lineHeight: "1.55", whiteSpace: "pre-wrap", margin: 0 }}>
-              {selectedDetail.transcript.text || "No stored transcript."}
-            </p>
-          </div>
-
-          <p style={{ color: "var(--text)", fontSize: "12px", fontWeight: "700", margin: "0 0 7px" }}>
-            Key moments
-          </p>
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px", maxHeight: "150px", overflowY: "auto" }}>
-            {selectedDetail.topics.map((topic) => (
-              <button
-                type="button"
-                key={topic.topic_id}
-                onClick={(event) => seekVideo(event, topic.start_time)}
-                style={{ textAlign: "left", color: "var(--text)", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "6px", padding: "7px 8px", cursor: "pointer" }}
-              >
-                <span style={{ display: "block", color: "var(--accent)", fontSize: "10px", fontWeight: "700" }}>
-                  {formatDuration(topic.start_time)} - {formatDuration(topic.end_time)}
-                </span>
-                <span style={{ display: "block", fontSize: "11px", marginTop: "3px" }}>
-                  {topic.text}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    )}
-    </section>
-        )}
-      </div>
-    );
-};
+  );
+}
