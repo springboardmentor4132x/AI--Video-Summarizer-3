@@ -13,8 +13,89 @@ function statusLabel(status) {
   return (status || "unknown").replaceAll("_", " ");
 }
 
+function captureThumbnail(videoUrl, signal) {
+  return new Promise((resolve, reject) => {
+    const videoElement = document.createElement("video");
+    const canvas = document.createElement("canvas");
+    let settled = false;
+    let timeoutId;
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      videoElement.onloadeddata = null;
+      videoElement.onseeked = null;
+      videoElement.onerror = null;
+      signal.removeEventListener("abort", handleAbort);
+    };
+
+    const finish = (callback, value) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      callback(value);
+    };
+
+    const handleAbort = () => finish(reject, new DOMException("Thumbnail request cancelled", "AbortError"));
+    const drawFrame = () => {
+      const width = videoElement.videoWidth || 640;
+      const height = videoElement.videoHeight || 360;
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) {
+        finish(reject, new Error("Could not create thumbnail canvas"));
+        return;
+      }
+      context.drawImage(videoElement, 0, 0, width, height);
+      finish(resolve, canvas.toDataURL("image/jpeg", 0.82));
+    };
+
+    videoElement.muted = true;
+    videoElement.playsInline = true;
+    videoElement.preload = "metadata";
+    videoElement.onloadeddata = () => {
+      if (videoElement.duration > 0.5) {
+        videoElement.onseeked = drawFrame;
+        videoElement.currentTime = Math.min(Math.max(videoElement.duration * 0.08, 0.1), 4);
+      } else {
+        drawFrame();
+      }
+    };
+    videoElement.onerror = () => finish(reject, new Error("Could not decode video thumbnail"));
+    signal.addEventListener("abort", handleAbort, { once: true });
+    timeoutId = window.setTimeout(
+      () => finish(reject, new Error("Video thumbnail timed out")),
+      10000,
+    );
+    videoElement.src = videoUrl;
+    videoElement.load();
+  });
+}
+
+function VideoThumbnail({ video, thumbnailUrl }) {
+  return (
+    <div className="aspect-video bg-slate-950 relative overflow-hidden flex items-center justify-center">
+      {thumbnailUrl && (
+        <img
+          src={thumbnailUrl}
+          alt={`Preview of ${video.filename}`}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/65 via-black/10 to-black/20" />
+      <span className="relative z-10 flex h-11 w-11 items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-transform group-hover:scale-110">
+        <Play size={22} className="ml-0.5 fill-current" />
+      </span>
+      <span className="absolute top-3 right-3 text-[10px] uppercase font-bold bg-black/60 text-white px-2 py-1 rounded">
+        {statusLabel(video.status)}
+      </span>
+    </div>
+  );
+}
+
 export function UploadHistory({ initialVideoId, onOpenVideo, onBack, subTab = "detail" }) {
   const [videos, setVideos] = useState([]);
+  const [thumbnailUrls, setThumbnailUrls] = useState({});
   const [selectedVideo, setSelectedVideo] = useState(null);
   const [videoDetail, setVideoDetail] = useState(null);
   const [mediaUrl, setMediaUrl] = useState("");
@@ -57,6 +138,44 @@ export function UploadHistory({ initialVideoId, onOpenVideo, onBack, subTab = "d
       cancelled = true;
     };
   }, [initialVideoId]);
+
+  useEffect(() => {
+    if (videos.length === 0) {
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    let cancelled = false;
+
+    const loadThumbnails = async () => {
+      await Promise.all(
+        videos.map(async (video) => {
+          let mediaUrl = "";
+          try {
+            const mediaResponse = await apiClient.get(
+              `/videos/${video.id}/media`,
+              { responseType: "blob", signal: controller.signal },
+            );
+            mediaUrl = URL.createObjectURL(mediaResponse.data);
+            const thumbnailUrl = await captureThumbnail(mediaUrl, controller.signal);
+            if (!cancelled) {
+              setThumbnailUrls((current) => ({ ...current, [video.id]: thumbnailUrl }));
+            }
+          } catch {
+            // The card keeps its play treatment when a frame cannot be decoded.
+          } finally {
+            if (mediaUrl) URL.revokeObjectURL(mediaUrl);
+          }
+        }),
+      );
+    };
+
+    loadThumbnails();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [videos]);
 
   useEffect(() => {
     if (!selectedVideo) return undefined;
@@ -264,12 +383,7 @@ export function UploadHistory({ initialVideoId, onOpenVideo, onBack, subTab = "d
               onClick={() => handleSelect(video)}
               className="group text-left bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer"
             >
-              <div className="aspect-video bg-slate-950 relative flex items-center justify-center">
-                <Play size={28} className="text-white fill-current opacity-80 group-hover:scale-110 transition-transform" />
-                <span className="absolute top-3 right-3 text-[10px] uppercase font-bold bg-black/60 text-white px-2 py-1 rounded">
-                  {statusLabel(video.status)}
-                </span>
-              </div>
+              <VideoThumbnail video={video} thumbnailUrl={thumbnailUrls[video.id]} />
               <div className="p-4">
                 <p className="text-xs font-bold text-slate-900 dark:text-white truncate">{video.filename}</p>
                 <p className="text-[11px] text-slate-500 mt-1">
