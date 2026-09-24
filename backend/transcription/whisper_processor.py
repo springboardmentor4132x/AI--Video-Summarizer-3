@@ -1,15 +1,32 @@
 import os
+import shutil
+import stat
+import tempfile
+from pathlib import Path
+
 from imageio_ffmpeg import get_ffmpeg_exe
 
-# openai-whisper internally shells out to a plain "ffmpeg" command on PATH
-# when loading audio, which is separate from the imageio_ffmpeg binary this
-# project already uses for extraction. On machines without ffmpeg installed
-# system-wide (common on Windows), that internal call fails and transcription
-# breaks even though our own extract_audio() step succeeded.
-# Fix: put the bundled ffmpeg binary's folder on PATH so Whisper finds it too.
-_ffmpeg_dir = os.path.dirname(get_ffmpeg_exe())
-if _ffmpeg_dir not in os.environ.get("PATH", ""):
-    os.environ["PATH"] = _ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+def _expose_ffmpeg_command():
+    """Expose imageio-ffmpeg's bundled binary as the `ffmpeg` command."""
+    bundled_ffmpeg = Path(get_ffmpeg_exe())
+    command_dir = Path(tempfile.gettempdir()) / "clipmind-bin"
+    command_dir.mkdir(parents=True, exist_ok=True)
+    command_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+    command_path = command_dir / command_name
+
+    if not command_path.exists():
+        try:
+            command_path.symlink_to(bundled_ffmpeg)
+        except OSError:
+            shutil.copy2(bundled_ffmpeg, command_path)
+
+    if os.name != "nt":
+        command_path.chmod(command_path.stat().st_mode | stat.S_IXUSR)
+
+    os.environ["PATH"] = str(command_dir) + os.pathsep + os.environ.get("PATH", "")
+
+
+_expose_ffmpeg_command()
 
 import whisper
 
