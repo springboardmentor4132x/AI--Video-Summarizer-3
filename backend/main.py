@@ -68,9 +68,12 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:5174",
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS",
+            "http://localhost:3000,http://localhost:5173,http://localhost:5174",
+        ).split(",")
+        if origin.strip()
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -438,7 +441,9 @@ def get_analytics(
 # File Storage
 # ---------------------------------------------------------
 
-UPLOAD_DIR = Path(__file__).resolve().parent / "uploads"
+UPLOAD_DIR = Path(
+    os.getenv("UPLOAD_DIR", str(Path(__file__).resolve().parent / "uploads"))
+)
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100MB
@@ -482,7 +487,7 @@ def enforce_video_retention(db: Session, user_id: int):
 # Whisper + Module 3
 # ---------------------------------------------------------
 
-whisper_processor = WhisperProcessor("tiny")
+whisper_processor = WhisperProcessor(os.getenv("WHISPER_MODEL", "tiny"))
 topic_pipeline = TopicPipeline(whisper_processor)
 
 
