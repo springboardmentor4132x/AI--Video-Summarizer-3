@@ -14,4 +14,5 @@ imageio-ffmpeg==0.6.0
 sentence-transformers==6.0.1
 scikit-learn==1.9.0
 groq==0.11.0
+transformers>=5.0.0,<6.0.0
 

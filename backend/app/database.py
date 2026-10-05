@@ -5,9 +5,10 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 
 load_dotenv()
 
-DATABASE_URL = os.getenv(
-    "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/clipmind_ai"
-)
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL must be set before starting the backend")
 
 # Railway and some managed Postgres providers still expose the legacy scheme.
 if DATABASE_URL.startswith("postgres://"):

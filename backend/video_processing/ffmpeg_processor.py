@@ -1,10 +1,12 @@
+import shutil
 import subprocess
 from imageio_ffmpeg import get_ffmpeg_exe
 
 
 def extract_audio(video_path: str, audio_path: str):
+    ffmpeg_executable = shutil.which("ffmpeg") or get_ffmpeg_exe()
     command = [
-        get_ffmpeg_exe(),
+        ffmpeg_executable,
         "-y",
         "-i",
         video_path,

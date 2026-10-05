@@ -67,14 +67,16 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
+    allow_origins=list({
         origin.strip()
-        for origin in os.getenv(
-            "CORS_ORIGINS",
-            "http://localhost:3000,http://localhost:5173,http://localhost:5174",
+        for origin in (
+            os.getenv("CORS_ORIGINS", "")
+            + ","
+            + os.getenv("FRONTEND_URL", "")
+            + ",http://localhost:3000,http://localhost:5173,http://localhost:5174"
         ).split(",")
         if origin.strip()
-    ],
+    }),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -85,10 +87,10 @@ app.add_middleware(
 # JWT Authentication
 # ---------------------------------------------------------
 
-JWT_SECRET_KEY = os.getenv(
-    "JWT_SECRET_KEY",
-    "clipmind-development-secret"
-)
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+
+if not JWT_SECRET_KEY:
+    raise RuntimeError("JWT_SECRET_KEY must be set before starting the backend")
 
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
